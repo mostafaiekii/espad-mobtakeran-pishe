@@ -1,0 +1,33 @@
+appId: ir.kargahyar.desktop
+productName: Kargahyar
+copyright: Copyright © 2026 کارگاه‌یار
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - main.js
+  - package.json
+
+extraResources:
+  - from: resources/app
+    to: app
+  - from: resources/seed
+    to: seed
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: کارگاه‌یار
+  artifactName: Kargahyar-Setup-${version}.${ext}
+  deleteAppDataOnUninstall: false

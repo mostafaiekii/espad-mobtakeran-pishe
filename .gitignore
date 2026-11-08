@@ -1,0 +1,26 @@
+# وابستگی‌ها و بیلد
+node_modules/
+.next/
+out/
+build-tmp/
+
+# دیتابیس محلی و لاگ‌ها
+db/*.db
+db/*.db-journal
+*.log
+dev.log
+server.log
+
+# خروجی دسکتاپ (بیلد می‌شود، کامیت نمی‌شود)
+desktop/node_modules/
+desktop/dist/
+desktop/resources/
+desktop/npm-install.log
+
+# محیط
+.env
+.env*.local
+
+# سیستم
+.DS_Store
+Thumbs.db

@@ -1,0 +1,78 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── کاربران (نیروها و مدیر) ─────────────────────────────
+model User {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String   @unique
+  password   String
+  role       String   @default("WORKER") // WORKER | MANAGER
+  jobTitle   String? // اپراتور CNC، جوشکار و ...
+  hourlyRate Int      @default(0) // نرخ ساعتی (تومان)
+  createdAt  DateTime @default(now())
+
+  attendances Attendance[]
+  cncJobs     CncJob[]
+  advances    AdvanceRequest[]
+  tasks       TaskLog[]
+}
+
+// ─── حضور و غیاب (ورود / خروج) ───────────────────────────
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String // ENTRY | EXIT
+  timestamp DateTime @default(now())
+  note      String?
+}
+
+// ─── تایم ماشینکاری CNC ──────────────────────────────────
+model CncJob {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  machine     String // نام دستگاه
+  partName    String // نام قطعه
+  material    String? // جنس
+  startTime   DateTime
+  endTime     DateTime
+  durationMin Int // مدت زمان (دقیقه)
+  status      String   @default("DONE") // RUNNING | DONE
+  note        String?
+  createdAt   DateTime @default(now())
+}
+
+// ─── درخواست مساعده ──────────────────────────────────────
+model AdvanceRequest {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  amount     Int // مبلغ (تومان)
+  reason     String
+  status     String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewNote String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+// ─── چک‌لیست و ثبت کارهای روزانه ─────────────────────────
+model TaskLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  category  String   @default("GENERAL") // GENERAL | MAINTENANCE | QUALITY | PACKAGING | SAFETY
+  date      DateTime
+  status    String   @default("DONE") // TODO | DONE
+  note      String?
+  createdAt DateTime @default(now())
+}
