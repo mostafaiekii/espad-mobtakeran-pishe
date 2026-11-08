@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  // برای بستهٔ دسکتاپ به sharp نیاز نیست (برنامه از next/image استفاده نمی‌کند)
+  images: {
+    unoptimized: true,
+  },
 };
 
 export default nextConfig;

@@ -1,5 +1,5 @@
 # ساخت نسخه ویندوز کارگاه‌یار (exe) روی رانر ویندوز گیت‌هاب
-# خروجی: desktop/dist/Kargahyar-Setup-1.0.0.exe در آرتیفکت‌های اکشن
+# خروجی: Release با فایل Kargahyar-Setup-<version>.exe
 
 name: Build Windows EXE
 
@@ -18,6 +18,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Install dependencies
         run: bun install
@@ -41,24 +45,29 @@ jobs:
         env:
           DATABASE_URL: file:../db/demo.db
 
+      # مونتاژ قطعی موتور: standalone + node_modules با npm + کلاینت Prisma و موتور ویندوز
       - name: Assemble Electron resources
         shell: bash
+        run: node scripts/assemble-desktop.js
+        env:
+          DATABASE_URL: file:../db/demo.db
+
+      - name: Verify packaged engine (fail loudly)
+        shell: bash
         run: |
-          mkdir -p desktop/resources/seed
-          cp -r .next/standalone desktop/resources/app
-          cp -r .next/static desktop/resources/app/.next/static
-          cp -r public desktop/resources/app/public
-          cp node_modules/.prisma/client/query_engine-windows*.dll.node desktop/resources/app/node_modules/.prisma/client/ || true
-          cp node_modules/.prisma/client/schema.prisma desktop/resources/app/node_modules/.prisma/client/
-          cp db/demo.db desktop/resources/seed/kargahyar.db
-          # تبدیل symlinkها به کپی واقعی (سازگاری NSIS)
-          cd desktop/resources/app
-          for l in $(find . -type l); do
-            t=$(readlink -f "$l") || continue
-            rm -f "$l"
-            cp -rL "$t" "$l" || true
-          done
-          cd ../../../..
+          set -e
+          test -f desktop/resources/app/server.js
+          test -f desktop/resources/app/node_modules/next/package.json
+          test -f desktop/resources/app/node_modules/react/index.js
+          test -f desktop/resources/app/node_modules/react-dom/index.js
+          test -f desktop/resources/app/node_modules/@prisma/client/package.json
+          test -f desktop/resources/app/node_modules/.prisma/client/index.js
+          test -f desktop/resources/app/node_modules/.prisma/client/schema.prisma
+          ls desktop/resources/app/node_modules/.prisma/client/query_engine-windows*.node > /dev/null
+          test -d desktop/resources/app/.next/static
+          test -d desktop/resources/app/public
+          test -f desktop/resources/seed/kargahyar.db
+          echo "OK: all critical engine files present"
 
       - name: Install Electron toolchain
         run: npm install --no-audit --no-fund

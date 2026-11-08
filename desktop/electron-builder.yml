@@ -6,6 +6,9 @@ directories:
   output: dist
   buildResources: build
 
+# کپی node_modules موتور به مرحلهٔ بسته‌بندی (electron-builder آن را فیلتر می‌کند)
+afterPack: ./afterpack.js
+
 files:
   - main.js
   - package.json
