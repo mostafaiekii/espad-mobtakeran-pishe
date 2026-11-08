@@ -148,25 +148,24 @@ function startServer(port) {
     DATABASE_URL: 'file:' + dbFile().split(path.sep).join('/'),
   }
   log('[engine] spawn on port ' + port + ' (attempt ' + attempts + ')')
-  serverProc = spawn(process.execPath, [path.join(APP_DIR, 'server.js')], {
+  const proc = spawn(process.execPath, [path.join(APP_DIR, 'server.js')], {
     env,
     cwd: APP_DIR,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
-  serverProc.stdout.on('data', (d) => log('[next] ' + String(d).trim()))
-  serverProc.stderr.on('data', (d) => log('[next:err] ' + String(d).trim()))
-  serverProc.on('exit', (code) => {
-    log('[engine] exited with code ' + code)
-    if (serverProc === null) return // بعد از killServer عمدی
+  serverProc = proc
+  proc.stdout.on('data', (d) => log('[next] ' + String(d).trim()))
+  proc.stderr.on('data', (d) => log('[next:err] ' + String(d).trim()))
+  proc.on('exit', (code) => {
+    if (serverProc !== proc) return // پروسه قدیمی — نادیده گرفته شود
     serverProc = null
+    log('[engine] exited with code ' + code)
     if (quitting) return
     if (ready) {
       // کرش بعد از راه‌اندازی موفق → راه‌اندازی مجدد خودکار
       ready = false
       restartEngine('اتصال با موتور برنامه قطع شد — در حال راه‌اندازی مجدد…')
-    } else if (!restarting) {
-      // ناموفق در همین تلاش → حلقهٔ retry توسط waitForServer مدیریت می‌شود
     }
   })
 }
