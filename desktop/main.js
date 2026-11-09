@@ -96,15 +96,53 @@ const errorHtml = (title, sub) =>
     </body></html>`
   )
 
-// ── پورت آزاد ─────────────────────────────────────────────
-function getFreePort() {
+// ── پورت سرور ─────────────────────────────────────────────
+// پورت ثابت ترجیحی تا نیروها بتوانند آدرس را در مرورگر سیستم خودشان ذخیره کنند؛
+// اگر اشغال بود، پورت‌های بعدی و در نهایت پورت تصادفی آزاد انتخاب می‌شود.
+const PREFERRED_PORTS = [4780, 4781, 4782, 4783, 4784, 4785, 4786, 4787, 4788, 4789]
+function portFree(port) {
   return new Promise((resolve) => {
     const s = net.createServer()
-    s.listen(0, '127.0.0.1', () => {
+    s.once('error', () => resolve(false))
+    s.listen(port, '0.0.0.0', () => {
+      s.close(() => resolve(true))
+    })
+  })
+}
+async function pickPort() {
+  for (const p of PREFERRED_PORTS) {
+    if (await portFree(p)) return p
+  }
+  return new Promise((resolve) => {
+    const s = net.createServer()
+    s.listen(0, '0.0.0.0', () => {
       const p = s.address().port
       s.close(() => resolve(p))
     })
   })
+}
+
+// ── آدرس‌های شبکه برای اتصال سیستم‌های نیروها ──────────
+function logLANAddresses(port) {
+  try {
+    const os = require('os')
+    const nets = os.networkInterfaces()
+    const urls = []
+    for (const addrs of Object.values(nets)) {
+      for (const a of addrs ?? []) {
+        if (a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) {
+          urls.push('http://' + a.address + ':' + port)
+        }
+      }
+    }
+    if (urls.length > 0) {
+      log('[network] آدرس اتصال نیروها: ' + urls.join('  |  '))
+    } else {
+      log('[network] هیچ کارت شبکه محلی پیدا نشد — فقط دسترسی محلی فعال است')
+    }
+  } catch (e) {
+    log('[network] error: ' + e.message)
+  }
 }
 
 // ── دیتابیس کاربر ─────────────────────────────────────────
@@ -136,7 +174,8 @@ function startServer(port) {
     NODE_OPTIONS: '',
     ELECTRON_NO_ATTACH_CONSOLE: '1',
     PORT: String(port),
-    HOSTNAME: '127.0.0.1',
+    // 0.0.0.0 = گوش‌دادن روی شبکه محلی؛ سیستم‌های نیروها در LAN می‌توانند وصل شوند
+    HOSTNAME: '0.0.0.0',
     DATABASE_URL: 'file:' + dbFile().split(path.sep).join('/'),
   }
   log('[engine] spawn on port ' + port + ' (attempt ' + attempts + ')')
@@ -190,7 +229,7 @@ async function waitForServer(timeoutMs) {
 async function launchEngine() {
   attempts++
   killServer()
-  const port = await getFreePort()
+  const port = await pickPort()
   serverPort = port
   startServer(port)
   const ok = await waitForServer(ready ? 20000 : 60000)
@@ -199,6 +238,7 @@ async function launchEngine() {
     attempts = 0
     restarting = false
     log('[engine] ready → loading app UI')
+    logLANAddresses(port)
     await win.loadURL('http://127.0.0.1:' + port)
     return
   }
@@ -214,7 +254,7 @@ async function launchEngine() {
   win.loadURL(
     errorHtml(
       'راه‌اندازی موتور برنامه ناموفق بود',
-      'لطفاً موارد زیر را بررسی کنید:<br>• برنامه را ببندید و دوباره باز کنید<br>• اگر آنتی‌ویروس (Windows Defender یا…) پیام امنیتی نشان داد، گزینهٔ Allow را بزنید و کارگاه‌یار را در لیست استثنا قرار دهید<br>• در صورت تکرار، برنامه را حذف و نسخهٔ جدید را دوباره نصب کنید'
+      'لطفاً موارد زیر را بررسی کنید:<br>• برنامه را ببندید و دوباره باز کنید<br>• اگر آنتی‌ویروس (Windows Defender یا…) پیام امنیتی نشان داد، گزینهٔ Allow را بزنید و اسپاد مبتکران پیشه را در لیست استثنا قرار دهید<br>• در صورت تکرار، برنامه را حذف و نسخهٔ جدید را دوباره نصب کنید'
     )
   )
 }
@@ -227,7 +267,7 @@ function restartEngine(splashMsg) {
     win.loadURL(
       errorHtml(
         'اتصال با موتور برنامه قطع شد',
-        'چند تلاش خودکار برای راه‌اندازی مجدد ناموفق بود.<br>لطفاً برنامه را ببندید و دوباره باز کنید؛ اگر تکرار شد، کارگاه‌یار را در آنتی‌ویروس ویندوز استثنا کنید.'
+        'چند تلاش خودکار برای راه‌اندازی مجدد ناموفق بود.<br>لطفاً برنامه را ببندید و دوباره باز کنید؛ اگر تکرار شد، اسپاد مبتکران پیشه را در آنتی‌ویروس ویندوز استثنا کنید.'
       )
     )
     return
@@ -277,7 +317,11 @@ async function main() {
     } else if (url.startsWith('kargahyar://quit')) {
       e.preventDefault()
       app.quit()
-    } else if (url.startsWith('data:') === false && url.startsWith('http://127.0.0.1:') === false) {
+    } else if (
+      url.startsWith('data:') === false &&
+      url.startsWith('http://127.0.0.1:') === false &&
+      url.startsWith('http://localhost:') === false
+    ) {
       e.preventDefault()
     }
   })

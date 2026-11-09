@@ -81,7 +81,7 @@ log('نسخه‌های موتور: ' + JSON.stringify(versions))
 
 const enginePkg = {
   name: 'espad-engine',
-  version: '1.1.0',
+  version: '1.2.0',
   private: true,
   description: 'موتور سرور اسپاد مبتکران پیشه (Next.js standalone) — تولید خودکار، ویرایش نکنید',
   dependencies: {

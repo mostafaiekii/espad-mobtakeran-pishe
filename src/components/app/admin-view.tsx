@@ -59,6 +59,11 @@ import {
   FileText,
   Printer,
   Table2,
+  Wifi,
+  Copy,
+  Router,
+  MonitorSmartphone,
+  Check,
 } from 'lucide-react'
 
 interface Props {
@@ -66,7 +71,7 @@ interface Props {
   onLogout: () => void
 }
 
-type Section = 'dashboard' | 'workers' | 'attendance' | 'cnc' | 'advances' | 'tasks' | 'reports'
+type Section = 'dashboard' | 'workers' | 'attendance' | 'cnc' | 'advances' | 'tasks' | 'reports' | 'network'
 
 const NAV: { key: Section; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'داشبورد', icon: LayoutDashboard },
@@ -76,6 +81,7 @@ const NAV: { key: Section; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'advances', label: 'درخواست مساعده', icon: Wallet },
   { key: 'tasks', label: 'گزارش کارها', icon: ClipboardList },
   { key: 'reports', label: 'گزارش‌گیری', icon: FileBarChart },
+  { key: 'network', label: 'راهنمای اتصال', icon: Wifi },
 ]
 
 const CHART = {
@@ -140,6 +146,10 @@ export function AdminView({ user, onLogout }: Props) {
   const [repDate, setRepDate] = useState<DateFilterState>({ ...defaultFilter(), scope: 'month' })
   const [repWorker, setRepWorker] = useState('ALL')
 
+  // راهنمای اتصال (شبکه محلی)
+  const [netInfo, setNetInfo] = useState<{ ips: string[]; port: number; urls: string[] } | null>(null)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+
   const refresh = useCallback(async (silent = false) => {
     try {
       const d = await apiGet<AdminData>('/api/admin/data')
@@ -157,6 +167,26 @@ export function AdminView({ user, onLogout }: Props) {
     const iv = setInterval(() => refresh(true), 8000)
     return () => clearInterval(iv)
   }, [refresh])
+
+  // گرفتن آدرس‌های شبکه برای بخش راهنمای اتصال
+  useEffect(() => {
+    if (section !== 'network') return
+    setNetInfo(null)
+    apiGet<{ ips: string[]; port: number; urls: string[] }>('/api/network')
+      .then(setNetInfo)
+      .catch(() => setNetInfo({ ips: [], port: 0, urls: [] }))
+  }, [section])
+
+  function copyUrl(u: string) {
+    navigator.clipboard
+      .writeText(u)
+      .then(() => {
+        setCopiedUrl(u)
+        toast.success('آدرس کپی شد — برای نیروها بفرستید')
+        setTimeout(() => setCopiedUrl(null), 2000)
+      })
+      .catch(() => toast.error('کپی نشد؛ آدرس را دستی انتخاب و کپی کنید'))
+  }
 
   const stats = data?.stats
 
@@ -991,6 +1021,151 @@ export function AdminView({ user, onLogout }: Props) {
                   </CardContent>
                 </Card>
               ))}
+            </>
+          )}
+
+          {/* ═════════ راهنمای اتصال (شبکه محلی) ═════════ */}
+          {section === 'network' && (
+            <>
+              <div>
+                <h1 className="text-xl lg:text-2xl font-black">راهنمای اتصال سیستم‌های کارگاه</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  نیروها بدون نصب هیچ برنامه‌ای، با مرورگر سیستم خودشان به همین برنامه وصل می‌شوند
+                </p>
+              </div>
+
+              {/* آدرس اتصال */}
+              <Card className="border-amber-200 bg-amber-50/60 dim:bg-amber-950/20 dark:bg-amber-950/20 dim:border-amber-900 dark:border-amber-900">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Wifi className="size-4.5 text-amber-600" /> آدرس اتصال نیروها
+                  </CardTitle>
+                  <CardDescription>
+                    یکی از این آدرس‌ها را روی سیستم‌های نیروها در مرورگر (Chrome / Edge) باز کنید
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {netInfo === null ? (
+                    <div className="flex items-center gap-2 py-6 justify-center text-muted-foreground text-sm">
+                      <Loader2 className="size-4 animate-spin text-amber-600" /> در حال خواندن آدرس‌های شبکه…
+                    </div>
+                  ) : netInfo.urls.length === 0 ? (
+                    <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-card border border-border text-sm leading-6">
+                      <Router className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+                      <div>
+                        هیچ کارت شبکه‌ای پیدا نشد. سیستم دفتر باید با کابل یا وای‌فای به روتر/مودم کارگاه وصل باشد؛
+                        بعد این صفحه را دوباره باز کنید.
+                      </div>
+                    </div>
+                  ) : (
+                    netInfo.urls.map((u) => (
+                      <div
+                        key={u}
+                        className="flex items-center gap-2 p-2.5 ps-4 rounded-xl bg-card border border-border shadow-sm"
+                      >
+                        <MonitorSmartphone className="size-4.5 text-muted-foreground shrink-0" />
+                        <code dir="ltr" className="flex-1 font-bold text-sm sm:text-base text-foreground select-all">
+                          {u}
+                        </code>
+                        <Button size="sm" className="gap-1.5 h-9 font-bold" onClick={() => copyUrl(u)}>
+                          {copiedUrl === u ? <Check className="size-4" /> : <Copy className="size-4" />}
+                          {copiedUrl === u ? 'کپی شد' : 'کپی آدرس'}
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                  {netInfo && netInfo.port !== 0 && netInfo.ips.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground leading-5">
+                      اگر هیچ‌کدام از این آدرس‌ها کار نکرد، احتمالاً سیستم دفتر و سیستم نیرو روی یک شبکه نیستند —
+                      نکات پایین همین صفحه را ببینید.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* مراحل راه‌اندازی */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Router className="size-4.5 text-amber-600" /> راه‌اندازی — فقط یک‌بار
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ol className="space-y-3.5 text-sm leading-7">
+                    {[
+                      <>
+                        <b>اتصال همه سیستم‌ها به یک شبکه:</b> سیستم دفتر و سیستم‌های نیروها (هرکدام جدا) همگی با کابل
+                        شبکه یا وای‌فای به یک روتر/مودم/سوئیچ مشترک وصل باشند. اینترنت لازم نیست؛ فقط «یک شبکه» بودن مهم است.
+                      </>,
+                      <>
+                        <b>برنامه روی سیستم دفتر باز بماند:</b> همین برنامه‌ای که الان در آن هستید، نقش سرور را دارد —
+                        پنجره‌اش را در شیفت کاری نبندید (کمینه کردن مشکلی ندارد).
+                      </>,
+                      <>
+                        <b>آدرس را روی سیستم نیرو باز کنید:</b> آدرس بالا را کپی کنید، روی سیستم نیرو در مرورگر
+                        (Chrome یا Edge) وارد کنید و Enter بزنید. صفحه همین برنامه باز می‌شود.
+                      </>,
+                      <>
+                        <b>ثبت‌نام نیرو:</b> هر نیرو در تب «ثبت‌نام نیرو» با شماره موبایل خودش عضو می‌شود و بعد
+                        با همان شماره هر روز وارد می‌شود.
+                      </>,
+                      <>
+                        <b>دیدن لحظه‌ای:</b> از این به بعد هر ثبت نیرو (ورود/خروج، تایم CNC، مساعده، کار روزانه)
+                        حداکثر تا ۸ ثانیه بعد، خودکار در داشبورد شما می‌آید.
+                      </>,
+                    ].map((node, i) => (
+                      <li key={i} className="flex gap-3">
+                        <span className="size-6 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                          {faNum(i + 1)}
+                        </span>
+                        <span className="min-w-0">{node}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </CardContent>
+              </Card>
+
+              {/* نکات و رفع اشکال */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">اگر وصل نشد — رفع اشکال</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2.5 text-sm leading-7 text-muted-foreground">
+                    <li className="flex gap-2">
+                      <span className="text-amber-600 font-bold">•</span>
+                      <span>
+                        <b className="text-foreground">فایروال:</b> نصب‌کننده برنامه خودش قانون فایروال را اضافه می‌کند؛
+                        اگر باز هم وصل نشد، در ویندوز سیستم دفتر «Windows Security → Firewall → Allow an app» را باز کنید و
+                        تیک برنامه اسپاد روی شبکه Private را بزنید.
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-amber-600 font-bold">•</span>
+                      <span>
+                        <b className="text-foreground">آدرس عوض شده:</b> اگر روتر خاموش/روشن شده باشد ممکن است IP سیستم
+                        دفتر عوض شود؛ آدرس جدید را از همین صفحه بردارید. برای آدرس همیشگی، در تنظیمات روتر برای سیستم دفتر
+                        «DHCP Reservation» (آدرس ثابت) تعیین کنید.
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-amber-600 font-bold">•</span>
+                      <span>
+                        <b className="text-foreground">یک شبکه بودن:</b> سیستم نیرو نباید روی وای‌فای گوشی (هات‌اسپات) باشد؛
+                        باید همان شبکه کارگاه باشد. تست ساده: روی سیستم نیرو، در همان آدرسِ بالا، فقط IP را Ping کنید یا
+                        آدرس را دوباره از این صفحه کپی کنید.
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-amber-600 font-bold">•</span>
+                      <span>
+                        <b className="text-foreground">اطلاعات:</b> همهٔ داده‌ها فقط روی سیستم دفتر (فایل دیتابیس) ذخیره
+                        می‌شود؛ سیستم‌های نیرو هیچ داده‌ای نگه نمی‌دارند. هر چند وقت یک‌بار از سیستم دفتر بکاپ بگیرید.
+                      </span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
             </>
           )}
         </main>
