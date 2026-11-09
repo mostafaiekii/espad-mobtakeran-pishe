@@ -1,6 +1,6 @@
-appId: ir.kargahyar.desktop
-productName: Kargahyar
-copyright: Copyright © 2026 کارگاه‌یار
+appId: ir.espad.desktop
+productName: Espad
+copyright: Copyright © 2026 اسپاد مبتکران پیشه · Mostafa Morovati
 
 directories:
   output: dist
@@ -16,8 +16,6 @@ files:
 extraResources:
   - from: resources/app
     to: app
-  - from: resources/seed
-    to: seed
 
 win:
   target:
@@ -31,6 +29,6 @@ nsis:
   perMachine: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: کارگاه‌یار
-  artifactName: Kargahyar-Setup-${version}.${ext}
+  shortcutName: اسپاد مبتکران پیشه
+  artifactName: Espad-Setup-${version}.${ext}
   deleteAppDataOnUninstall: false

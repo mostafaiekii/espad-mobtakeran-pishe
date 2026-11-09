@@ -44,7 +44,21 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  ignores: [
+    "node_modules/**",
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "examples/**",
+    "skills",
+    // اسکریپت‌های Node/CommonJS بیلد و پکج (خارج از اپ Next)
+    "scripts/**",
+    "desktop/**",
+    "mini-services/**",
+    "tests/**",
+    "prisma/seed.ts",
+  ]
 }];
 
 export default eslintConfig;

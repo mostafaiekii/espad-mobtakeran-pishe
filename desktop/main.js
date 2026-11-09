@@ -1,4 +1,4 @@
-// کارگاه‌یار دسکتاپ — پروسه اصلی Electron
+// اسپاد مبتکران پیشه دسکتاپ — پروسه اصلی Electron
 // سرور Next.js standalone را به‌صورت پروسه فرعی اجرا می‌کند و پنجره برنامه را نمایش می‌دهد.
 // مقاوم‌سازی: راه‌اندازی مجدد خودکار موتور، لاگ کامل، صفحات خطای شفاف با دکمه تلاش مجدد.
 const { app, BrowserWindow, Menu, shell } = require('electron')
@@ -9,9 +9,8 @@ const http = require('http')
 const net = require('net')
 
 // برای تست روی لینوکس می‌توان مسیر resources را دستی داد
-const RESOURCES = process.env.KARGAHYAR_RES || process.resourcesPath || path.join(__dirname, 'resources')
+const RESOURCES = process.env.KARGAHYAR_RES || process.env.ESPAD_RES || process.resourcesPath || path.join(__dirname, 'resources')
 const APP_DIR = path.join(RESOURCES, 'app')
-const SEED_DB = path.join(RESOURCES, 'seed', 'kargahyar.db')
 
 const MAX_ATTEMPTS = 3 // حداکثر تلاش‌های متوالی ناموفق
 const RESTART_DELAY = 1500
@@ -75,7 +74,7 @@ const splashHtml = (msg) =>
   encodeURIComponent(
     `<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="utf-8"><style>${pageStyle}</style></head><body>
     <div class="box"><svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9.4 4.4-1.9-.2a7.7 7.7 0 0 0-.5-1.3l1.2-1.5a1 1 0 0 0-.07-1.32l-1.41-1.41a1 1 0 0 0-1.32-.07l-1.5 1.19a7.7 7.7 0 0 0-1.3-.54L14.4 5.6A1 1 0 0 0 13.41 4.6h-2a1 1 0 0 0-1 .8l-.29 1.9a7.7 7.7 0 0 0-1.3.54L7.3 6.65a1 1 0 0 0-1.32.07L4.57 8.13a1 1 0 0 0-.07 1.32l1.19 1.5a7.7 7.7 0 0 0-.54 1.3l-1.9.29a1 1 0 0 0-.8 1v2a1 1 0 0 0 .8 1l1.9.29a7.7 7.7 0 0 0 .54 1.3l-1.19 1.5a1 1 0 0 0 .07 1.32l1.41 1.41a1 1 0 0 0 1.32.07l1.5-1.19a7.7 7.7 0 0 0 1.3.54l.29 1.9a1 1 0 0 0 1 .8h2a1 1 0 0 0 1-.8l.29-1.9a7.7 7.7 0 0 0 1.3-.54l1.5 1.19a1 1 0 0 0 1.32-.07l1.41-1.41a1 1 0 0 0 .07-1.32l-1.19-1.5a7.7 7.7 0 0 0 .54-1.3l1.9-.29a1 1 0 0 0 .8-1v-2a1 1 0 0 0-.8-1zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg></div>
-    <div class="t">کارگاه‌یار</div>
+    <div class="t">اسپاد مبتکران پیشه</div>
     <div class="bar"><i></i></div>
     <div class="m">${msg}</div>
     </body></html>`
@@ -87,7 +86,7 @@ const errorHtml = (title, sub) =>
     `<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="utf-8"><style>${pageStyle}
      .box,.box svg{animation:none}</style></head><body>
     <div class="box"><svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9.4 4.4-1.9-.2a7.7 7.7 0 0 0-.5-1.3l1.2-1.5a1 1 0 0 0-.07-1.32l-1.41-1.41a1 1 0 0 0-1.32-.07l-1.5 1.19a7.7 7.7 0 0 0-1.3-.54L14.4 5.6A1 1 0 0 0 13.41 4.6h-2a1 1 0 0 0-1 .8l-.29 1.9a7.7 7.7 0 0 0-1.3.54L7.3 6.65a1 1 0 0 0-1.32.07L4.57 8.13a1 1 0 0 0-.07 1.32l1.19 1.5a7.7 7.7 0 0 0-.54 1.3l-1.9.29a1 1 0 0 0-.8 1v2a1 1 0 0 0 .8 1l1.9.29a7.7 7.7 0 0 0 .54 1.3l-1.19 1.5a1 1 0 0 0 .07 1.32l1.41 1.41a1 1 0 0 0 1.32.07l1.5-1.19a7.7 7.7 0 0 0 1.3.54l.29 1.9a1 1 0 0 0 1 .8h2a1 1 0 0 0 1-.8l.29-1.9a7.7 7.7 0 0 0 1.3-.54l1.5 1.19a1 1 0 0 0 1.32-.07l1.41-1.41a1 1 0 0 0 .07-1.32l-1.19-1.5a7.7 7.7 0 0 0 .54-1.3l1.9-.29a1 1 0 0 0 .8-1v-2a1 1 0 0 0-.8-1zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg></div>
-    <div class="t">کارگاه‌یار</div>
+    <div class="t">اسپاد مبتکران پیشه</div>
     <div class="m">${title}</div>
     <div class="sub">${sub}</div>
     <div class="btns">
@@ -109,19 +108,12 @@ function getFreePort() {
 }
 
 // ── دیتابیس کاربر ─────────────────────────────────────────
+// در نصب تازه، فایل دیتابیس خالی است؛ جداول هنگام استارت موتور
+// به‌صورت خودکار ساخته می‌شوند (instrumentation) — بدون هیچ دادهٔ دمو.
 function dbFile() {
   const dir = app.getPath('userData')
   fs.mkdirSync(dir, { recursive: true })
-  const dbPath = path.join(dir, 'kargahyar.db')
-  if (!fs.existsSync(dbPath) && fs.existsSync(SEED_DB)) {
-    try {
-      fs.copyFileSync(SEED_DB, dbPath)
-      log('[db] seed copied to ' + dbPath)
-    } catch (e) {
-      log('[db] copy failed: ' + e.message)
-    }
-  }
-  return dbPath
+  return path.join(dir, 'espad.db')
 }
 
 // ── اجرای سرور Next.js ───────────────────────────────────
@@ -248,7 +240,7 @@ function restartEngine(splashMsg) {
 // ── راه‌اندازی اصلی ───────────────────────────────────────
 async function main() {
   Menu.setApplicationMenu(null)
-  if (app.setAppUserModelId) app.setAppUserModelId('ir.kargahyar.desktop')
+  if (app.setAppUserModelId) app.setAppUserModelId('ir.espad.desktop')
 
   win = new BrowserWindow({
     width: 1280,
@@ -258,7 +250,7 @@ async function main() {
     show: false,
     backgroundColor: '#0c0a09',
     autoHideMenuBar: true,
-    title: 'کارگاه‌یار',
+    title: 'اسپاد مبتکران پیشه',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

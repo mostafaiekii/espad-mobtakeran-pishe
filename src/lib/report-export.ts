@@ -167,7 +167,7 @@ export function printReport(
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="utf-8" />
-<title>گزارش کارگاه‌یار</title>
+<title>گزارش اسپاد مبتکران پیشه</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -192,13 +192,13 @@ export function printReport(
 <body>
   <header>
     <div>
-      <h1>⚙️ کارگاه‌یار — گزارش کارگاه</h1>
+      <h1>⚙️ اسپاد مبتکران پیشه — گزارش کارگاه</h1>
       <div class="meta">بازه گزارش: ${esc(meta.rangeLabel)} · نیرو: ${esc(meta.workerLabel)}</div>
     </div>
     <div class="meta">تاریخ تهیه: ${esc(meta.generatedAt)}</div>
   </header>
   ${tablesHtml}
-  <footer>کارگاه‌یار — بانک اطلاعات مدیریت کارگاه</footer>
+  <footer>اسپاد مبتکران پیشه — بانک اطلاعات مدیریت کارگاه · توسعه‌دهنده: Mostafa Morovati</footer>
 </body>
 </html>`
 

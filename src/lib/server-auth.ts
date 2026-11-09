@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import type { User } from '@prisma/client'
 import type { SessionUser } from '@/lib/types'
 
-/** خواندن کاربر جاری از هدر x-user-id (دمو — بدون توکن) */
+/** خواندن کاربر جاری از هدر x-user-id (نشست ساده — برای نسخه تک‌کاربره/شبکه محلی) */
 export async function getUserFromReq(req: Request): Promise<User | null> {
   const id = req.headers.get('x-user-id')
   if (!id) return null

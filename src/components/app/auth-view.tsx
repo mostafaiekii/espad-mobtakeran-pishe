@@ -1,16 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { AppLogo } from '@/components/app/ui-bits'
 import { ThemeToggle } from '@/components/app/theme-toggle'
-import { apiPost, setSession } from '@/lib/api'
+import { apiGet, apiPost, setSession } from '@/lib/api'
 import type { SessionUser } from '@/lib/types'
 import {
   Users,
@@ -21,10 +20,10 @@ import {
   LayoutDashboard,
   LogIn,
   UserPlus,
-  Sparkles,
   Loader2,
   ShieldCheck,
   Phone,
+  UserCog,
 } from 'lucide-react'
 
 /** تبدیل ارقام فارسی/عربی به لاتین */
@@ -44,6 +43,13 @@ const FEATURES = [
 ]
 
 export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
+  // وضعیت راه‌اندازی اولیه (وقتی هنوز مدری تعریف نشده)
+  const [setupState, setSetupState] = useState<'checking' | 'needed' | 'ready'>('checking')
+  const [setupName, setSetupName] = useState('')
+  const [setupPhone, setSetupPhone] = useState('')
+  const [setupPass, setSetupPass] = useState('')
+  const [loadingSetup, setLoadingSetup] = useState(false)
+
   const [loginPhone, setLoginPhone] = useState('')
   const [loginPass, setLoginPass] = useState('')
   const [loadingLogin, setLoadingLogin] = useState(false)
@@ -53,12 +59,42 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
   const [regJob, setRegJob] = useState('')
   const [regPass, setRegPass] = useState('')
   const [loadingReg, setLoadingReg] = useState(false)
-  const [demoLoading, setDemoLoading] = useState<'manager' | 'worker' | null>(null)
 
-  async function doLogin(phone: string, password: string) {
-    const res = await apiPost<{ user: SessionUser }>('/api/auth/login', { phone, password })
-    setSession(res.user)
-    onLogin(res.user)
+  useEffect(() => {
+    let alive = true
+    apiGet<{ needed: boolean }>('/api/setup')
+      .then((r) => {
+        if (alive) setSetupState(r.needed ? 'needed' : 'ready')
+      })
+      .catch(() => {
+        if (alive) setSetupState('ready')
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  async function submitSetup(e: React.FormEvent) {
+    e.preventDefault()
+    if (!setupName.trim() || !setupPhone.trim() || !setupPass) {
+      toast.error('نام، شماره موبایل و رمز عبور الزامی است')
+      return
+    }
+    setLoadingSetup(true)
+    try {
+      const res = await apiPost<{ user: SessionUser }>('/api/setup', {
+        name: setupName.trim(),
+        phone: normalizeDigits(setupPhone.trim()),
+        password: setupPass,
+      })
+      setSession(res.user)
+      onLogin(res.user)
+      toast.success('مدیر کارگاه ساخته شد؛ به اسپاد مبتکران پیشه خوش آمدید! 🎉')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'خطا در راه‌اندازی')
+    } finally {
+      setLoadingSetup(false)
+    }
   }
 
   async function submitLogin(e: React.FormEvent) {
@@ -69,7 +105,12 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
     }
     setLoadingLogin(true)
     try {
-      await doLogin(normalizeDigits(loginPhone.trim()), loginPass)
+      const res = await apiPost<{ user: SessionUser }>('/api/auth/login', {
+        phone: normalizeDigits(loginPhone.trim()),
+        password: loginPass,
+      })
+      setSession(res.user)
+      onLogin(res.user)
       toast.success('خوش آمدید! 👋')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'خطا در ورود')
@@ -102,18 +143,6 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
     }
   }
 
-  async function demoLogin(role: 'manager' | 'worker') {
-    setDemoLoading(role)
-    try {
-      await doLogin(role === 'manager' ? '09120000000' : '09121111111', 'demo1234')
-      toast.success(role === 'manager' ? 'به پنل مدیریت خوش آمدید' : 'به داشبورد نیرو خوش آمدید')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'خطا در ورود دمو')
-    } finally {
-      setDemoLoading(null)
-    }
-  }
-
   return (
     <div className="min-h-screen flex flex-col workshop-bg">
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-10">
@@ -121,23 +150,23 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
           {/* ── معرفی محصول ── */}
           <section className="order-2 lg:order-1 space-y-6">
             <div className="flex items-start justify-between gap-3">
-              <div className="space-y-3">
+              <div className="space-y-3 min-w-0">
                 <AppLogo size="lg" />
                 <h1 className="text-2xl sm:text-3xl font-black text-foreground leading-relaxed">
                   دفتر مدیریت کارگاه،
                   <br />
-                  <span className="text-amber-600 dark:text-amber-400">در جیب هر نیرو</span>
+                  <span className="text-amber-600 dark:text-amber-400 dim:text-amber-400">در جیب هر نیرو</span>
                 </h1>
               </div>
-              <div className="pt-1 flex flex-col items-center gap-1.5">
+              <div className="pt-1 flex flex-col items-center gap-1.5 shrink-0">
                 <ThemeToggle />
                 <span className="text-[10px] text-muted-foreground">تم نمایش</span>
               </div>
             </div>
             <p className="text-muted-foreground text-sm leading-7 max-w-md">
-                نیروها گزارش کار، حضور و غیاب و درخواست‌هایشان را داخل اپ ثبت می‌کنند؛ شما در دفتر مدیریت،
-                <span className="font-semibold text-foreground"> بدون جمع‌کردن دونه‌دونه گزارش‌ها</span>، به بانک اطلاعات کامل کارگاه دسترسی زنده دارید.
-              </p>
+              نیروها گزارش کار، حضور و غیاب و درخواست‌هایشان را داخل اپ ثبت می‌کنند؛ شما در دفتر مدیریت،
+              <span className="font-semibold text-foreground"> بدون جمع‌کردن دونه‌دونه گزارش‌ها</span>، به بانک اطلاعات کامل کارگاه دسترسی زنده دارید.
+            </p>
 
             <div className="grid sm:grid-cols-2 gap-3">
               {FEATURES.map((f) => (
@@ -154,132 +183,163 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
             </div>
           </section>
 
-          {/* ── کارت ورود ── */}
+          {/* ── کارت ورود / راه‌اندازی ── */}
           <section className="order-1 lg:order-2">
             <Card className="shadow-xl border-border/70 bg-card/95 backdrop-blur">
               <CardContent className="p-6 sm:p-8">
-                <Tabs defaultValue="login" dir="rtl">
-                  <TabsList className="grid grid-cols-2 w-full h-10 mb-6">
-                    <TabsTrigger value="login" className="gap-1.5">
-                      <LogIn className="size-4" /> ورود
-                    </TabsTrigger>
-                    <TabsTrigger value="register" className="gap-1.5">
-                      <UserPlus className="size-4" /> ثبت‌نام نیرو
-                    </TabsTrigger>
-                  </TabsList>
+                {setupState === 'checking' && (
+                  <div className="flex items-center justify-center gap-2 py-14 text-muted-foreground text-sm">
+                    <Loader2 className="size-5 animate-spin text-amber-600" />
+                    در حال بررسی…
+                  </div>
+                )}
 
-                  {/* ورود */}
-                  <TabsContent value="login">
-                    <form onSubmit={submitLogin} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="login-phone">شماره موبایل</Label>
-                        <div className="relative">
-                          <Phone className="size-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            id="login-phone"
-                            inputMode="numeric"
-                            placeholder="09xxxxxxxxx"
-                            className="pr-9 text-left"
-                            dir="ltr"
-                            value={loginPhone}
-                            onChange={(e) => setLoginPhone(e.target.value)}
-                          />
+                {/* ═══ راه‌اندازی اولیه: ساخت مدیر ═══ */}
+                {setupState === 'needed' && (
+                  <form onSubmit={submitSetup} className="space-y-4">
+                    <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 dim:bg-amber-950/30 border border-amber-200 dark:border-amber-900 dim:border-amber-900">
+                      <div className="size-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0">
+                        <UserCog className="size-5" />
+                      </div>
+                      <div>
+                        <div className="font-black text-sm">راه‌اندازی اولیه کارگاه</div>
+                        <div className="text-[11px] text-muted-foreground leading-5">
+                          هنوز مدری تعریف نشده؛ حساب مدیر را بسازید. پس از آن نیروها خودشان ثبت‌نام می‌کنند.
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="login-pass">رمز عبور</Label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-name">نام و نام خانوادگی مدیر</Label>
+                      <Input id="setup-name" placeholder="مثلاً: مهدی رضایی" value={setupName} onChange={(e) => setSetupName(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-phone">شماره موبایل مدیر</Label>
+                      <div className="relative">
+                        <Phone className="size-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                          id="login-pass"
-                          type="password"
-                          placeholder="••••••••"
-                          value={loginPass}
-                          onChange={(e) => setLoginPass(e.target.value)}
+                          id="setup-phone"
+                          inputMode="numeric"
+                          placeholder="09xxxxxxxxx"
+                          className="pr-9 text-left"
+                          dir="ltr"
+                          value={setupPhone}
+                          onChange={(e) => setSetupPhone(e.target.value)}
                         />
                       </div>
-                      <Button type="submit" className="w-full h-11 text-base font-bold" disabled={loadingLogin}>
-                        {loadingLogin ? <Loader2 className="size-5 animate-spin" /> : 'ورود به کارگاه‌یار'}
-                      </Button>
-                    </form>
-                  </TabsContent>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-pass">رمز عبور مدیر</Label>
+                      <Input id="setup-pass" type="password" placeholder="حداقل ۶ کاراکتر" value={setupPass} onChange={(e) => setSetupPass(e.target.value)} />
+                    </div>
+                    <Button type="submit" className="w-full h-11 text-base font-bold" disabled={loadingSetup}>
+                      {loadingSetup ? <Loader2 className="size-5 animate-spin" /> : (
+                        <>
+                          <ShieldCheck className="size-5" /> ساخت حساب مدیر و شروع
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-[11px] text-muted-foreground leading-5 text-center">
+                      این حساب فقط یک‌بار ساخته می‌شود و دسترسی کامل مدیریت را دارد. آن را فراموش نکنید.
+                    </p>
+                  </form>
+                )}
 
-                  {/* ثبت‌نام */}
-                  <TabsContent value="register">
-                    <form onSubmit={submitRegister} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="reg-name">نام و نام خانوادگی</Label>
-                        <Input id="reg-name" placeholder="مثلاً: علی محمدی" value={regName} onChange={(e) => setRegName(e.target.value)} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
+                {/* ═══ ورود / ثبت‌نام ═══ */}
+                {setupState === 'ready' && (
+                  <Tabs defaultValue="login" dir="rtl">
+                    <TabsList className="grid grid-cols-2 w-full h-11 mb-6 p-1">
+                      <TabsTrigger value="login" className="gap-1.5">
+                        <LogIn className="size-4" /> ورود
+                      </TabsTrigger>
+                      <TabsTrigger value="register" className="gap-1.5">
+                        <UserPlus className="size-4" /> ثبت‌نام نیرو
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {/* ورود */}
+                    <TabsContent value="login">
+                      <form onSubmit={submitLogin} className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="reg-phone">شماره موبایل</Label>
+                          <Label htmlFor="login-phone">شماره موبایل</Label>
+                          <div className="relative">
+                            <Phone className="size-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              id="login-phone"
+                              inputMode="numeric"
+                              placeholder="09xxxxxxxxx"
+                              className="pr-9 text-left"
+                              dir="ltr"
+                              value={loginPhone}
+                              onChange={(e) => setLoginPhone(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="login-pass">رمز عبور</Label>
                           <Input
-                            id="reg-phone"
-                            inputMode="numeric"
-                            placeholder="09xxxxxxxxx"
-                            dir="ltr"
-                            className="text-left"
-                            value={regPhone}
-                            onChange={(e) => setRegPhone(e.target.value)}
+                            id="login-pass"
+                            type="password"
+                            placeholder="••••••••"
+                            value={loginPass}
+                            onChange={(e) => setLoginPass(e.target.value)}
                           />
                         </div>
+                        <Button type="submit" className="w-full h-11 text-base font-bold" disabled={loadingLogin}>
+                          {loadingLogin ? <Loader2 className="size-5 animate-spin" /> : 'ورود'}
+                        </Button>
+                      </form>
+                    </TabsContent>
+
+                    {/* ثبت‌نام نیرو */}
+                    <TabsContent value="register">
+                      <form onSubmit={submitRegister} className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="reg-job">سمت شغلی</Label>
-                          <Input id="reg-job" placeholder="اپراتور CNC" value={regJob} onChange={(e) => setRegJob(e.target.value)} />
+                          <Label htmlFor="reg-name">نام و نام خانوادگی</Label>
+                          <Input id="reg-name" placeholder="مثلاً: علی محمدی" value={regName} onChange={(e) => setRegName(e.target.value)} />
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="reg-pass">رمز عبور</Label>
-                        <Input id="reg-pass" type="password" placeholder="حداقل ۶ کاراکتر" value={regPass} onChange={(e) => setRegPass(e.target.value)} />
-                      </div>
-                      <Button type="submit" className="w-full h-11 text-base font-bold" disabled={loadingReg}>
-                        {loadingReg ? <Loader2 className="size-5 animate-spin" /> : 'ثبت‌نام و ورود'}
-                      </Button>
-                      <p className="text-[11px] text-muted-foreground leading-5 text-center">
-                        با ثبت‌نام، اطلاعات کاری شما برای مدیریت کارگاه در دسترس قرار می‌گیرد.
-                      </p>
-                    </form>
-                  </TabsContent>
-                </Tabs>
-
-                <div className="my-5 flex items-center gap-3">
-                  <Separator className="flex-1" />
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Sparkles className="size-3.5 text-amber-500" /> ورود دموی یک‌کلیکی
-                  </span>
-                  <Separator className="flex-1" />
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    className="h-11 border-stone-300 dark:border-stone-600 dim:border-stone-600 hover:bg-accent"
-                    disabled={demoLoading !== null}
-                    onClick={() => demoLogin('manager')}
-                  >
-                    {demoLoading === 'manager' ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4 text-stone-600" />}
-                    پنل مدیریت
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-11 border-amber-300 dark:border-amber-700 dim:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 dim:hover:bg-amber-950/40"
-                    disabled={demoLoading !== null}
-                    onClick={() => demoLogin('worker')}
-                  >
-                    {demoLoading === 'worker' ? <Loader2 className="size-4 animate-spin" /> : <Cog className="size-4 text-amber-600" />}
-                    داشبورد نیرو
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground text-center mt-3">
-                  حساب دمو: مدیر <b dir="ltr">09120000000</b> · نیرو <b dir="ltr">09121111111</b> · رمز <b dir="ltr">demo1234</b>
-                </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="reg-phone">شماره موبایل</Label>
+                            <Input
+                              id="reg-phone"
+                              inputMode="numeric"
+                              placeholder="09xxxxxxxxx"
+                              dir="ltr"
+                              className="text-left"
+                              value={regPhone}
+                              onChange={(e) => setRegPhone(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="reg-job">سمت شغلی</Label>
+                            <Input id="reg-job" placeholder="اپراتور CNC" value={regJob} onChange={(e) => setRegJob(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="reg-pass">رمز عبور</Label>
+                          <Input id="reg-pass" type="password" placeholder="حداقل ۶ کاراکتر" value={regPass} onChange={(e) => setRegPass(e.target.value)} />
+                        </div>
+                        <Button type="submit" className="w-full h-11 text-base font-bold" disabled={loadingReg}>
+                          {loadingReg ? <Loader2 className="size-5 animate-spin" /> : 'ثبت‌نام و ورود'}
+                        </Button>
+                        <p className="text-[11px] text-muted-foreground leading-5 text-center">
+                          با ثبت‌نام، اطلاعات کاری شما برای مدیریت کارگاه در دسترس قرار می‌گیرد.
+                        </p>
+                      </form>
+                    </TabsContent>
+                  </Tabs>
+                )}
               </CardContent>
             </Card>
           </section>
         </div>
       </main>
 
-      <footer className="mt-auto py-4 text-center text-xs text-muted-foreground">
-        کارگاه‌یار — نسخه دمو · ساخته‌شده برای مدیریت هوشمند کارگاه
+      <footer className="mt-auto py-4 text-center text-xs text-muted-foreground space-y-0.5">
+        <div>اسپاد مبتکران پیشه — سامانه مدیریت هوشمند کارگاه</div>
+        <div>
+          توسعه‌دهنده: <span dir="ltr" className="font-semibold">Mostafa Morovati</span>
+        </div>
       </footer>
     </div>
   )

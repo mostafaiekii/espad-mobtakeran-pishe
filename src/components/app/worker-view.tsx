@@ -100,12 +100,12 @@ export function WorkerView({ user, onLogout }: Props) {
   const [deleteTask, setDeleteTask] = useState<TaskRec | null>(null)
   const [busyTaskDel, setBusyTaskDel] = useState(false)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     try {
       const d = await apiGet<WorkerData>('/api/worker/data')
       setData(d)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'خطا در دریافت اطلاعات')
+      if (!silent) toast.error(err instanceof Error ? err.message : 'خطا در دریافت اطلاعات')
     } finally {
       setLoading(false)
     }
@@ -118,6 +118,9 @@ export function WorkerView({ user, onLogout }: Props) {
     const d = new Date()
     setTaskDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
     refresh()
+    // بروزرسانی خودکار هر ۲۰ ثانیه — داده‌ها همیشه تازه می‌مانند
+    const iv = setInterval(() => refresh(true), 20000)
+    return () => clearInterval(iv)
   }, [refresh])
 
   // ── محاسبات امروز ──
@@ -497,18 +500,18 @@ export function WorkerView({ user, onLogout }: Props) {
 
         {/* ── تب‌ها ── */}
         <Tabs value={tab} onValueChange={setTab} dir="rtl" className="space-y-4">
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl h-11 p-1">
-            <TabsTrigger value="attendance" className="gap-1.5">
-              <Clock className="size-4" /> <span className="hidden sm:inline">حضور</span>
+          <TabsList className="grid grid-cols-4 w-full h-auto min-h-12 max-w-2xl p-1">
+            <TabsTrigger value="attendance" className="gap-1 sm:gap-1.5 py-2">
+              <Clock className="size-4" /> <span className="text-xs sm:text-sm">حضور</span>
             </TabsTrigger>
-            <TabsTrigger value="cnc" className="gap-1.5">
-              <Cog className="size-4" /> <span className="hidden sm:inline">CNC</span>
+            <TabsTrigger value="cnc" className="gap-1 sm:gap-1.5 py-2">
+              <Cog className="size-4" /> <span className="text-xs sm:text-sm">ماشین‌کاری</span>
             </TabsTrigger>
-            <TabsTrigger value="advance" className="gap-1.5">
-              <Wallet className="size-4" /> <span className="hidden sm:inline">مساعده</span>
+            <TabsTrigger value="advance" className="gap-1 sm:gap-1.5 py-2">
+              <Wallet className="size-4" /> <span className="text-xs sm:text-sm">مساعده</span>
             </TabsTrigger>
-            <TabsTrigger value="tasks" className="gap-1.5">
-              <ClipboardList className="size-4" /> <span className="hidden sm:inline">کارها</span>
+            <TabsTrigger value="tasks" className="gap-1 sm:gap-1.5 py-2">
+              <ClipboardList className="size-4" /> <span className="text-xs sm:text-sm">کارها</span>
             </TabsTrigger>
           </TabsList>
 
@@ -871,8 +874,11 @@ export function WorkerView({ user, onLogout }: Props) {
         </Tabs>
       </main>
 
-      <footer className="mt-auto py-4 text-center text-xs text-muted-foreground border-t border-border">
-        کارگاه‌یار — نسخه دمو · همه گزارش‌ها به‌صورت زنده در دفتر مدیریت ثبت می‌شود
+      <footer className="mt-auto py-4 text-center text-xs text-muted-foreground border-t border-border space-y-0.5">
+        <div>اسپاد مبتکران پیشه · همه گزارش‌ها به‌صورت زنده در پنل مدیریت ثبت می‌شود</div>
+        <div>
+          توسعه‌دهنده: <span dir="ltr" className="font-semibold">Mostafa Morovati</span>
+        </div>
       </footer>
 
       {/* ── تأیید ثبت خروج ── */}

@@ -2,19 +2,21 @@
 
 import { useSyncExternalStore } from 'react'
 import { useTheme } from 'next-themes'
-import { Check, Contrast, Moon, Sun } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Contrast, Moon, Sun } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const OPTIONS = [
-  { value: 'light', label: 'روشن', icon: Sun },
-  { value: 'gray', label: 'خاکستری (کم‌آزار چشم)', icon: Contrast },
-  { value: 'dark', label: 'تیره', icon: Moon },
+  { value: 'light', label: 'روشن', short: 'روشن', icon: Sun, active: 'bg-white text-amber-700 shadow-sm' },
+  { value: 'gray', label: 'خاکستری', short: 'خاکستری', icon: Contrast, active: 'bg-stone-600 text-white shadow-sm' },
+  { value: 'dark', label: 'تیره', short: 'تیره', icon: Moon, active: 'bg-stone-900 text-amber-400 shadow-sm' },
 ] as const
 
 const emptySubscribe = () => () => {}
 
-/** سوییچر تم — کنار اسم «کارگاه‌یار» در همه صفحات */
+/**
+ * سوییچر تم — سه تم روشن / خاکستری / تیره کنار هم
+ * در همهٔ صفحات کنار اسم «اسپاد مبتکران پیشه» نمایش داده می‌شود.
+ */
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   // تشخیص mount بدون setState در effect (سازگار با SSR)
@@ -26,30 +28,46 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button variant="outline" size="icon" className="size-8" disabled aria-label="تم نمایش">
-        <Sun className="size-4" />
-      </Button>
+      <div className="flex items-center rounded-full border border-border bg-muted/60 p-0.5 gap-0.5" aria-hidden>
+        {OPTIONS.map((o) => (
+          <span key={o.value} className="size-7 sm:size-8 rounded-full flex items-center justify-center">
+            <o.icon className="size-3.5 sm:size-4 text-muted-foreground" />
+          </span>
+        ))}
+      </div>
     )
   }
 
-  const CurrentIcon = OPTIONS.find((o) => o.value === theme)?.icon ?? Sun
-
   return (
-    <DropdownMenu dir="rtl">
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="size-8 shadow-sm" title="تغییر تم نمایش" aria-label="تغییر تم نمایش">
-          <CurrentIcon className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48">
-        {OPTIONS.map((o) => (
-          <DropdownMenuItem key={o.value} onClick={() => setTheme(o.value)} className="gap-2.5">
-            <o.icon className="size-4" />
-            <span className="flex-1">{o.label}</span>
-            {theme === o.value && <Check className="size-4 text-amber-600" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div
+      role="group"
+      aria-label="انتخاب تم نمایش"
+      className="flex items-center rounded-full border border-border bg-muted/60 p-0.5 gap-0.5 shadow-sm"
+    >
+      {OPTIONS.map((o) => {
+        const active = theme === o.value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => setTheme(o.value)}
+            aria-pressed={active}
+            title={`تم ${o.label}`}
+            className={cn(
+              'h-7 sm:h-8 rounded-full flex items-center justify-center gap-1 px-1.5 sm:px-2.5 transition-all cursor-pointer',
+              'min-w-7 sm:min-w-8',
+              active
+                ? o.active
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+            )}
+          >
+            <o.icon className="size-3.5 sm:size-4" />
+            <span className={cn('text-[10px] sm:text-[11px] font-bold', active ? 'inline' : 'hidden md:inline')}>
+              {o.short}
+            </span>
+          </button>
+        )
+      })}
+    </div>
   )
 }

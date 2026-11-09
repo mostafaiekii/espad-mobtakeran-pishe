@@ -1,10 +1,10 @@
 {
-  "name": "kargahyar-desktop",
-  "productName": "Kargahyar",
-  "version": "1.0.1",
-  "description": "کارگاه‌یار — سامانه مدیریت کارگاه (نسخه دسکتاپ ویندوز)",
+  "name": "espad-desktop",
+  "productName": "Espad",
+  "version": "1.1.0",
+  "description": "اسپاد مبتکران پیشه — سامانه مدیریت کارگاه (نسخه دسکتاپ ویندوز)",
   "main": "main.js",
-  "author": "mostafaiekii",
+  "author": "Mostafa Morovati",
   "license": "MIT",
   "private": true,
   "devDependencies": {

@@ -1,5 +1,7 @@
-# ساخت نسخه ویندوز کارگاه‌یار (exe) روی رانر ویندوز گیت‌هاب
-# خروجی: Release با فایل Kargahyar-Setup-<version>.exe
+# ساخت نسخه ویندوز اسپاد مبتکران پیشه (exe) روی رانر ویندوز گیت‌هاب
+# خروجی: Release با فایل Espad-Setup-<version>.exe
+# توجه: بدون دادهٔ دمو — در نصب تازه، جداول دیتابیس خودکار ساخته می‌شوند و
+# مدیر کارگاه در اولین اجرا (راه‌اندازی اولیه) تعریف می‌شود.
 
 name: Build Windows EXE
 
@@ -29,28 +31,27 @@ jobs:
       - name: Prisma generate (native + windows)
         run: bunx prisma generate
 
-      - name: Create seed database
+      # دیتابیس خالی فقط برای عبور از مرحله build (بدون seed و بدون دادهٔ دمو)
+      - name: Create empty build database
         shell: bash
         run: |
           mkdir -p db
-          bunx prisma db push --accept-data-loss
-          bun prisma/seed.ts
+          bunx prisma db push --accept-data-loss --skip-generate
         env:
-          # مسیر نسبت به prisma/schema.prisma حل می‌شود → ریشه پروژه
-          DATABASE_URL: file:../db/demo.db
+          DATABASE_URL: file:../db/build.db
 
       - name: Build Next.js standalone
         shell: bash
         run: bun run build
         env:
-          DATABASE_URL: file:../db/demo.db
+          DATABASE_URL: file:../db/build.db
 
       # مونتاژ قطعی موتور: standalone + node_modules با npm + کلاینت Prisma و موتور ویندوز
       - name: Assemble Electron resources
         shell: bash
         run: node scripts/assemble-desktop.js
         env:
-          DATABASE_URL: file:../db/demo.db
+          DATABASE_URL: file:../db/build.db
 
       - name: Verify packaged engine (fail loudly)
         shell: bash
@@ -66,7 +67,6 @@ jobs:
           ls desktop/resources/app/node_modules/.prisma/client/query_engine-windows*.node > /dev/null
           test -d desktop/resources/app/.next/static
           test -d desktop/resources/app/public
-          test -f desktop/resources/seed/kargahyar.db
           echo "OK: all critical engine files present"
 
       - name: Install Electron toolchain
@@ -82,5 +82,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Kargahyar-Setup
+          name: Espad-Setup
           path: desktop/dist/*.exe

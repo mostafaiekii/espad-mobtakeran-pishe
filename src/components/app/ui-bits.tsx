@@ -28,7 +28,7 @@ export function AppLogo({ size = 'md', withText = true }: { size?: 'sm' | 'md' |
       </div>
       {withText && (
         <div className="leading-tight">
-          <div className={cn(text, 'font-extrabold text-foreground')}>کارگاه‌یار</div>
+          <div className={cn(text, 'font-extrabold text-foreground whitespace-nowrap')}>اسپاد مبتکران پیشه</div>
         </div>
       )}
     </div>
@@ -118,7 +118,7 @@ export function SplashScreen() {
       <AppLogo size="lg" />
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
         <Loader2 className="size-4 animate-spin" />
-        در حال آماده‌سازی کارگاه‌یار…
+        در حال آماده‌سازی اسپاد مبتکران پیشه…
       </div>
     </div>
   )

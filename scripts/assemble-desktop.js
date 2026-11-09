@@ -1,4 +1,4 @@
-// مونتاژ قطعی و کامل «موتور برنامه» برای بستهٔ Electron کارگاه‌یار
+// مونتاژ قطعی و کامل «موتور برنامه» برای بستهٔ Electron اسپاد مبتکران پیشه
 // ─────────────────────────────────────────────────────────────
 // مشکل ریشه‌ای: خروجی standalone در Next.js 16 (بیلد Turbopack) روی بعضی
 // محیط‌ها (مانند رانر ویندوز گیت‌هاب + bun) پوشهٔ node_modules را کپی نمی‌کند
@@ -16,7 +16,6 @@ const root = path.resolve(__dirname, '..')
 const standalone = path.join(root, '.next', 'standalone')
 const desktopDir = path.join(root, 'desktop')
 const appDir = path.join(desktopDir, 'resources', 'app')
-const seedDir = path.join(desktopDir, 'resources', 'seed')
 
 function log(msg) {
   console.log('[assemble-desktop]', msg)
@@ -81,10 +80,10 @@ const versions = {
 log('نسخه‌های موتور: ' + JSON.stringify(versions))
 
 const enginePkg = {
-  name: 'kargahyar-engine',
-  version: '1.0.0',
+  name: 'espad-engine',
+  version: '1.1.0',
   private: true,
-  description: 'موتور سرور کارگاه‌یار (Next.js standalone) — تولید خودکار، ویرایش نکنید',
+  description: 'موتور سرور اسپاد مبتکران پیشه (Next.js standalone) — تولید خودکار، ویرایش نکنید',
   dependencies: {
     next: versions.next,
     react: versions.react,
@@ -138,17 +137,8 @@ if (!winEngine) {
 }
 log('موتور ویندوز تأیید شد: ' + winEngine)
 
-// ── ۶) دیتابیس دمو (seed) ───────────────────────────────────
-const seedSrc = process.env.SEED_DB || path.join(root, 'db', 'demo.db')
-if (!fs.existsSync(seedSrc)) {
-  fatal('دیتابیس دمو در ' + seedSrc + ' یافت نشد — ابتدا prisma db push + seed را اجرا کنید')
-}
-fs.rmSync(seedDir, { recursive: true, force: true })
-fs.mkdirSync(seedDir, { recursive: true })
-fs.copyFileSync(seedSrc, path.join(seedDir, 'kargahyar.db'))
-log('دیتابیس دمو کپی شد')
-
-// ── ۷) صحت‌سنجی نهایی ساختار ────────────────────────────────
+// ── ۶) صحت‌سنجی نهایی ساختار ────────────────────────────────
+// (بدون دادهٔ دمو — دیتابیس در نصب تازه خالی است و جداول هنگام استارت موتور خودکار ساخته می‌شوند)
 const mustExist = [
   path.join(appDir, 'server.js'),
   path.join(appDir, 'package.json'),
@@ -162,7 +152,6 @@ const mustExist = [
   path.join(appDir, 'node_modules', '.prisma', 'client', winEngine),
   path.join(appDir, '.next', 'static'),
   path.join(appDir, 'public'),
-  path.join(seedDir, 'kargahyar.db'),
 ]
 const missing = mustExist.filter((p) => !fs.existsSync(p))
 if (missing.length) fatal('فایل‌های حیاتی مفقودند:\n' + missing.join('\n'))
@@ -173,4 +162,4 @@ fs.writeFileSync(
 )
 
 log('✔ مونتاژ موتور کامل شد: desktop/resources/app')
-log('مرحله بعد: electron-builder (پوشهٔ desktop)')
+log('مرحله بعد: electron-builder (پوشهٔ desktop) — بدون دادهٔ دمو، آمادهٔ استفادهٔ واقعی')

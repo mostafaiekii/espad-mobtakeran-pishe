@@ -140,12 +140,12 @@ export function AdminView({ user, onLogout }: Props) {
   const [repDate, setRepDate] = useState<DateFilterState>({ ...defaultFilter(), scope: 'month' })
   const [repWorker, setRepWorker] = useState('ALL')
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     try {
       const d = await apiGet<AdminData>('/api/admin/data')
       setData(d)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'خطا در دریافت داده‌ها')
+      if (!silent) toast.error(err instanceof Error ? err.message : 'خطا در دریافت داده‌ها')
     } finally {
       setLoading(false)
     }
@@ -153,6 +153,9 @@ export function AdminView({ user, onLogout }: Props) {
 
   useEffect(() => {
     refresh()
+    // بروزرسانی خودکار هر ۸ ثانیه — ثبت‌های نیروها فوراً در پنل مدیریت دیده می‌شود
+    const iv = setInterval(() => refresh(true), 8000)
+    return () => clearInterval(iv)
   }, [refresh])
 
   const stats = data?.stats
@@ -323,7 +326,7 @@ export function AdminView({ user, onLogout }: Props) {
       toast.error('رکوردی برای خروجی وجود ندارد')
       return
     }
-    exportXlsx(repSections, `kargahyar-report-${jalaaliToday()}.xlsx`)
+    exportXlsx(repSections, `espad-report-${jalaaliToday()}.xlsx`)
       .then(() => toast.success('فایل اکسل دانلود شد 📊'))
       .catch(() => toast.error('خطا در ساخت فایل اکسل'))
   }
@@ -338,7 +341,7 @@ export function AdminView({ user, onLogout }: Props) {
       toast.error('رکوردی برای خروجی وجود ندارد')
       return
     }
-    exportCsv(sec, `kargahyar-${sec.key}-${jalaaliToday()}.csv`)
+    exportCsv(sec, `espad-${sec.key}-${jalaaliToday()}.csv`)
     toast.success('فایل CSV دانلود شد 📄')
   }
 
@@ -378,8 +381,8 @@ export function AdminView({ user, onLogout }: Props) {
               <Cog className="size-6 text-white" />
             </div>
             <div>
-              <div className="font-extrabold text-lg">کارگاه‌یار</div>
-              <div className="text-[11px] text-white/60">پنل مدیریت</div>
+              <div className="font-extrabold text-sm leading-snug">اسپاد مبتکران پیشه</div>
+              <div className="text-[11px] text-white/60">پنل مدیریت کارگاه</div>
             </div>
           </div>
           <ThemeToggle />
@@ -437,18 +440,28 @@ export function AdminView({ user, onLogout }: Props) {
             </div>
           </div>
           <nav className="flex gap-1.5 overflow-x-auto px-3 pb-2.5 custom-scrollbar">
-            {NAV.map((n) => (
-              <button
-                key={n.key}
-                onClick={() => setSection(n.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                  section === n.key ? 'bg-amber-600 text-white' : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                <n.icon className="size-3.5" />
-                {n.label}
-              </button>
-            ))}
+            {NAV.map((n) => {
+              const active = section === n.key
+              return (
+                <button
+                  key={n.key}
+                  onClick={() => setSection(n.key)}
+                  className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+                    active
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                      : 'bg-card text-muted-foreground border-border hover:text-foreground hover:bg-accent/60'
+                  }`}
+                >
+                  <n.icon className="size-3.5" />
+                  {n.label}
+                  {n.key === 'advances' && pendingAdvances.length > 0 && (
+                    <span className="size-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      {faNum(pendingAdvances.length)}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </nav>
         </header>
 
@@ -458,8 +471,14 @@ export function AdminView({ user, onLogout }: Props) {
             <>
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <h1 className="text-xl lg:text-2xl font-black">بانک اطلاعات کارگاه</h1>
-                  <p className="text-sm text-muted-foreground mt-1">{faDate(new Date())} — همه گزارش‌ها زنده و بدون نیاز به جمع‌آوری دستی</p>
+                  <h1 className="text-xl lg:text-2xl font-black flex items-center gap-2">
+                    بانک اطلاعات کارگاه
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2.5 py-1">
+                      <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      زنده — بروزرسانی خودکار
+                    </span>
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-1">{faDate(new Date())} — هر ثبت جدید ظرف چند ثانیه در همین صفحه دیده می‌شود</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => refresh()} className="gap-1.5">
                   <RefreshCw className="size-4" /> به‌روزرسانی
@@ -976,8 +995,11 @@ export function AdminView({ user, onLogout }: Props) {
           )}
         </main>
 
-        <footer className="mt-auto py-4 text-center text-xs text-muted-foreground border-t border-border">
-          کارگاه‌یار — نسخه دمو · بانک اطلاعات مدیریت
+        <footer className="mt-auto py-4 text-center text-xs text-muted-foreground border-t border-border space-y-0.5">
+          <div>اسپاد مبتکران پیشه · بانک اطلاعات مدیریت کارگاه</div>
+          <div>
+            توسعه‌دهنده: <span dir="ltr" className="font-semibold">Mostafa Morovati</span>
+          </div>
         </footer>
       </div>
 
