@@ -1,6 +1,6 @@
 import type { SessionUser } from '@/lib/types'
 
-const SESSION_KEY = 'espad_session'
+const SESSION_KEY = 'spad_session'
 
 export function getSession(): SessionUser | null {
   if (typeof window === 'undefined') return null

@@ -1,5 +1,5 @@
-appId: ir.espad.desktop
-productName: Espad
+appId: ir.spad.desktop
+productName: Spad
 copyright: Copyright © 2026 اسپاد مبتکران پیشه · Mostafa Morovati
 
 directories:
@@ -30,7 +30,7 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: اسپاد مبتکران پیشه
-  artifactName: Espad-Setup-${version}.${ext}
+  artifactName: Spad-Setup-${version}.${ext}
   deleteAppDataOnUninstall: false
   # قوانین فایروال (installer.nsh): بازکردن پورت سرور برای اتصال سیستم‌های نیروها در LAN
   include: build/installer.nsh

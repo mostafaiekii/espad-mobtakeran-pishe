@@ -54,7 +54,11 @@ export function WorkerView({ user, onLogout }: Props) {
   const [tab, setTab] = useState('attendance')
 
   const [logging, setLogging] = useState(false)
-  const [exitConfirm, setExitConfirm] = useState(false)
+  // ثبت دستی ساعت ورود / خروج — نیرو ساعت واقعی را خودش وارد می‌کند
+  const [entryDialog, setEntryDialog] = useState(false)
+  const [exitDialog, setExitDialog] = useState(false)
+  const [attTime, setAttTime] = useState('')
+  const [attNote, setAttNote] = useState('')
 
   // فرم CNC جدید
   const [machine, setMachine] = useState('')
@@ -191,12 +195,50 @@ export function WorkerView({ user, onLogout }: Props) {
   }, [data])
 
   // ── اکشن‌ها ──
-  async function logAttendance(type: 'ENTRY' | 'EXIT') {
+  /** ساعت جاری به‌صورت HH:MM — مقدار پیش‌فرض فیلد دستی */
+  function nowHM(): string {
+    const d = new Date()
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  /** تبدیل فقط رقم‌های ساعت به فارسی — faNum روی «۷:۳۰» ناعدد می‌دهد */
+  function faHM(hm: string): string {
+    return hm.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)])
+  }
+
+  function openAttDialog(type: 'ENTRY' | 'EXIT') {
+    setAttTime(nowHM())
+    setAttNote('')
+    if (type === 'ENTRY') setEntryDialog(true)
+    else setExitDialog(true)
+  }
+
+  /** پیش‌نمایش مدت حضور اگر با ساعت دستی ثبت خروج شود */
+  const exitPreviewMin = useMemo(() => {
+    if (!todayEntry || !attTime) return null
+    const m = /^(\d{1,2}):(\d{1,2})$/.exec(attTime)
+    if (!m) return null
+    const x = new Date(todayEntry.timestamp)
+    x.setHours(Number(m[1]), Number(m[2]), 0, 0)
+    if (x.getTime() <= new Date(todayEntry.timestamp).getTime()) return null
+    return Math.round((x.getTime() - new Date(todayEntry.timestamp).getTime()) / 60000)
+  }, [todayEntry, attTime])
+
+  /** مدت حضور تاکنون (وقتی نیرو حاضر است) */
+  const workedSoFarMin = todayEntry ? Math.max(0, Math.round((now.getTime() - new Date(todayEntry.timestamp).getTime()) / 60000)) : null
+
+  async function logAttendance(type: 'ENTRY' | 'EXIT', time?: string) {
     setLogging(true)
     try {
-      await apiPost('/api/worker/attendance', { type })
-      toast.success(type === 'ENTRY' ? 'ورود شما ثبت شد ✅' : 'خروج شما ثبت شد 👋')
-      setExitConfirm(false)
+      await apiPost('/api/worker/attendance', { type, time: time?.trim() || undefined, note: attNote.trim() || undefined })
+      toast.success(
+        type === 'ENTRY'
+          ? `ورود ثبت شد${time ? ` — ساعت ${faHM(time)}` : ''} ✅`
+          : `خروج ثبت شد${time ? ` — ساعت ${faHM(time)}` : ''} 👋`
+      )
+      setEntryDialog(false)
+      setExitDialog(false)
+      setAttNote('')
       await refresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'خطا در ثبت')
@@ -405,12 +447,12 @@ export function WorkerView({ user, onLogout }: Props) {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <AppLogo size="sm" />
-            <ThemeToggle />
             <Badge variant="secondary" className="hidden sm:inline-flex bg-amber-100 text-amber-800 border-amber-200">
               داشبورد نیرو
             </Badge>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button variant="ghost" size="icon" onClick={() => refresh()} title="به‌روزرسانی">
               <RefreshCw className="size-4" />
             </Button>
@@ -439,7 +481,10 @@ export function WorkerView({ user, onLogout }: Props) {
               {isPresent && (
                 <>
                   <div className="text-xl sm:text-2xl font-black">حاضر در کارگاه ✅</div>
-                  <div className="text-sm opacity-90">ورود از ساعت {faTime(todayEntry!.timestamp)}</div>
+                  <div className="text-sm opacity-90">
+                    ورود از ساعت {faTime(todayEntry!.timestamp)}
+                    {workedSoFarMin !== null && <> · تاکنون {faDuration(workedSoFarMin)} کار کرده‌اید</>}
+                  </div>
                 </>
               )}
               {hasLeft && (
@@ -453,13 +498,13 @@ export function WorkerView({ user, onLogout }: Props) {
               {!todayEntry && (
                 <>
                   <div className="text-xl sm:text-2xl font-black">امروز هنوز وارد نشده‌اید</div>
-                  <div className="text-sm opacity-90">با دکمه زیر ورود خود را ثبت کنید</div>
+                  <div className="text-sm opacity-90">دکمه زیر را بزنید و ساعت دقیق رسیدن را وارد کنید — مثلاً ۷:۳۰</div>
                 </>
               )}
             </div>
             {!hasLeft && (
               <Button
-                onClick={() => (isPresent ? setExitConfirm(true) : logAttendance('ENTRY'))}
+                onClick={() => openAttDialog(isPresent ? 'EXIT' : 'ENTRY')}
                 disabled={logging}
                 size="lg"
                 className={
@@ -522,7 +567,9 @@ export function WorkerView({ user, onLogout }: Props) {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <History className="size-4 text-amber-600" /> سابقه حضور و غیاب
                 </CardTitle>
-                <CardDescription>ورود و خروج هر روز به‌صورت خودکار در دفتر مدیریت ثبت می‌شود — رکوردهای حضور قابل ویرایش نیستند</CardDescription>
+                <CardDescription>
+                  ساعت ورود و خروج را خودتان دستی وارد می‌کنید و مستقیم در دفتر مدیریت ثبت می‌شود — ساعتِ ثبت‌شده قابل ویرایش نیست، پس ساعت واقعی را وارد کنید
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {dayPairs.length === 0 ? (
@@ -605,11 +652,21 @@ export function WorkerView({ user, onLogout }: Props) {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="cnc-start">زمان شروع *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cnc-start">زمان شروع *</Label>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[11px] gap-0.5" onClick={() => setStart(toLocalInput(new Date()))}>
+                        <Clock className="size-3" /> الان
+                      </Button>
+                    </div>
                     <Input id="cnc-start" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="cnc-end">زمان پایان *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cnc-end">زمان پایان *</Label>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[11px] gap-0.5" onClick={() => setEnd(toLocalInput(new Date()))}>
+                        <Clock className="size-3" /> الان
+                      </Button>
+                    </div>
                     <Input id="cnc-end" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
                   </div>
                   <div className="space-y-1.5">
@@ -881,15 +938,101 @@ export function WorkerView({ user, onLogout }: Props) {
         </div>
       </footer>
 
-      {/* ── تأیید ثبت خروج ── */}
-      <ConfirmDialog
-        open={exitConfirm}
-        onOpenChange={setExitConfirm}
-        title="ثبت خروج از کارگاه؟"
-        desc={`ساعت خروج شما ${faTime(new Date())} ثبت خواهد شد و امروز دیگر قابل ثبت ورود نیست. مطمئن هستید؟`}
-        confirmText="بله، خروج را ثبت کن"
-        onConfirm={() => logAttendance('EXIT')}
-      />
+      {/* ── ثبت دستی ورود ── */}
+      <Dialog open={entryDialog} onOpenChange={setEntryDialog} dir="rtl">
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="size-8 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <LogIn className="size-4" />
+              </span>
+              ثبت ورود به کارگاه
+            </DialogTitle>
+            <DialogDescription>ساعت دقیق رسیدن خود را وارد کنید — مثلاً ۷:۳۰. اگر همین حالا رسیدید، مقدار پیش‌فرض را تأیید کنید.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="att-time">ساعت ورود (امروز)</Label>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setAttTime(nowHM())}>
+                  <Clock className="size-3" /> همین الان
+                </Button>
+              </div>
+              <Input id="att-time" type="time" value={attTime} onChange={(e) => setAttTime(e.target.value)} className="h-11 text-lg font-bold text-center" dir="ltr" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="att-note">یادداشت (اختیاری)</Label>
+              <Input id="att-note" placeholder="مثلاً: ترافیک بود، کمی تأخیر داشتم" value={attNote} onChange={(e) => setAttNote(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEntryDialog(false)} disabled={logging}>انصراف</Button>
+            <Button
+              className="font-bold bg-emerald-600 hover:bg-emerald-700"
+              disabled={logging || !attTime}
+              onClick={() => logAttendance('ENTRY', attTime)}
+            >
+              {logging ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
+              ثبت ورود ساعت {attTime ? faHM(attTime) : '—'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── ثبت دستی خروج ── */}
+      <Dialog open={exitDialog} onOpenChange={setExitDialog} dir="rtl">
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="size-8 rounded-lg bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 flex items-center justify-center shrink-0">
+                <LogOut className="size-4" />
+              </span>
+              ثبت خروج از کارگاه
+            </DialogTitle>
+            <DialogDescription>
+              ورود امروز شما ساعت {todayEntry ? faTime(todayEntry.timestamp) : '—'} ثبت شده است. ساعت خروج را وارد کنید؛ امروز بعد از آن دیگر قابل ثبت ورود نیست.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="att-time-exit">ساعت خروج (امروز)</Label>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setAttTime(nowHM())}>
+                  <Clock className="size-3" /> همین الان
+                </Button>
+              </div>
+              <Input id="att-time-exit" type="time" value={attTime} onChange={(e) => setAttTime(e.target.value)} className="h-11 text-lg font-bold text-center" dir="ltr" />
+            </div>
+            {attTime && (
+              <div className="text-sm rounded-lg border border-border bg-muted/50 px-3 py-2.5 flex items-center gap-2">
+                <Clock className="size-4 text-amber-600 shrink-0" />
+                {exitPreviewMin !== null ? (
+                  <span>
+                    مدت حضور امروز: <b className="text-foreground">{faDuration(exitPreviewMin)}</b>
+                  </span>
+                ) : (
+                  <span className="text-red-600 dark:text-red-400 font-medium">ساعت خروج باید بعد از ساعت ورود باشد</span>
+                )}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="att-note-exit">یادداشت (اختیاری)</Label>
+              <Input id="att-note-exit" placeholder="مثلاً: کار اضافه انجام شد" value={attNote} onChange={(e) => setAttNote(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setExitDialog(false)} disabled={logging}>انصراف</Button>
+            <Button
+              className="font-bold bg-red-600 hover:bg-red-700"
+              disabled={logging || !attTime || exitPreviewMin === null}
+              onClick={() => logAttendance('EXIT', attTime)}
+            >
+              {logging ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+              ثبت خروج ساعت {attTime ? faHM(attTime) : '—'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── حذف رکورد CNC ── */}
       <ConfirmDialog

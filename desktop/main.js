@@ -148,10 +148,25 @@ function logLANAddresses(port) {
 // ── دیتابیس کاربر ─────────────────────────────────────────
 // در نصب تازه، فایل دیتابیس خالی است؛ جداول هنگام استارت موتور
 // به‌صورت خودکار ساخته می‌شوند (instrumentation) — بدون هیچ دادهٔ دمو.
+// مهاجرت: اگر کاربر نسخهٔ قبلی (پوشهٔ Espad) دیتابیس داشته باشد،
+// به مسیر جدید منتقل می‌شود تا داده‌هایش از دست نرود.
 function dbFile() {
   const dir = app.getPath('userData')
   fs.mkdirSync(dir, { recursive: true })
-  return path.join(dir, 'espad.db')
+  const dbPath = path.join(dir, 'spad.db')
+  try {
+    if (!fs.existsSync(dbPath)) {
+      const oldDir = path.join(path.dirname(dir), 'Espad')
+      const oldDb = path.join(oldDir, 'espad.db')
+      if (fs.existsSync(oldDb)) {
+        fs.copyFileSync(oldDb, dbPath)
+        log('[db] مهاجرت دیتابیس از نسخهٔ قبل انجام شد: ' + oldDb + ' → ' + dbPath)
+      }
+    }
+  } catch (e) {
+    log('[db] migration failed (non-fatal): ' + e.message)
+  }
+  return dbPath
 }
 
 // ── اجرای سرور Next.js ───────────────────────────────────
@@ -280,7 +295,7 @@ function restartEngine(splashMsg) {
 // ── راه‌اندازی اصلی ───────────────────────────────────────
 async function main() {
   Menu.setApplicationMenu(null)
-  if (app.setAppUserModelId) app.setAppUserModelId('ir.espad.desktop')
+  if (app.setAppUserModelId) app.setAppUserModelId('ir.spad.desktop')
 
   win = new BrowserWindow({
     width: 1280,

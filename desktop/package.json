@@ -1,7 +1,7 @@
 {
-  "name": "espad-desktop",
-  "productName": "Espad",
-  "version": "1.2.0",
+  "name": "spad-desktop",
+  "productName": "Spad",
+  "version": "1.3.0",
   "description": "اسپاد مبتکران پیشه — سامانه مدیریت کارگاه (نسخه دسکتاپ ویندوز)",
   "main": "main.js",
   "author": "Mostafa Morovati",

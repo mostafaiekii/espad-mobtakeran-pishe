@@ -1,5 +1,5 @@
 # ساخت نسخه ویندوز اسپاد مبتکران پیشه (exe) روی رانر ویندوز گیت‌هاب
-# خروجی: Release با فایل Espad-Setup-<version>.exe
+# خروجی: Release با فایل Spad-Setup-<version>.exe
 # توجه: بدون دادهٔ دمو — در نصب تازه، جداول دیتابیس خودکار ساخته می‌شوند و
 # مدیر کارگاه در اولین اجرا (راه‌اندازی اولیه) تعریف می‌شود.
 
@@ -82,5 +82,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Espad-Setup
+          name: Spad-Setup
           path: desktop/dist/*.exe

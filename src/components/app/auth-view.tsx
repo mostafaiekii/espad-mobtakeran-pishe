@@ -35,7 +35,7 @@ function normalizeDigits(s: string): string {
 
 const FEATURES = [
   { icon: Users, title: 'ثبت‌نام نیروها', desc: 'هر نیرو با موبایل خودش عضو می‌شود' },
-  { icon: Clock, title: 'حضور و غیاب لحظه‌ای', desc: 'ورود و خروج با یک لمس، بدون ورق و دفتر' },
+  { icon: Clock, title: 'حضور و غیاب دستی', desc: 'هر نیرو ساعت ورود و خروج خودش را ثبت می‌کند' },
   { icon: Cog, title: 'تایم ماشین‌کاری CNC', desc: 'ثبت دستگاه، قطعه، جنس و مدت‌زمان کار' },
   { icon: Banknote, title: 'درخواست مساعده آنلاین', desc: 'ثبت درخواست و پیگیری تایید توسط مدیر' },
   { icon: ClipboardCheck, title: 'چک‌لیست کار روزانه', desc: 'گزارش کارها در دسته‌بندی‌های شغلی' },

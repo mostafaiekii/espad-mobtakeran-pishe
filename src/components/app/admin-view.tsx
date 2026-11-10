@@ -356,7 +356,7 @@ export function AdminView({ user, onLogout }: Props) {
       toast.error('رکوردی برای خروجی وجود ندارد')
       return
     }
-    exportXlsx(repSections, `espad-report-${jalaaliToday()}.xlsx`)
+    exportXlsx(repSections, `spad-report-${jalaaliToday()}.xlsx`)
       .then(() => toast.success('فایل اکسل دانلود شد 📊'))
       .catch(() => toast.error('خطا در ساخت فایل اکسل'))
   }
@@ -371,7 +371,7 @@ export function AdminView({ user, onLogout }: Props) {
       toast.error('رکوردی برای خروجی وجود ندارد')
       return
     }
-    exportCsv(sec, `espad-${sec.key}-${jalaaliToday()}.csv`)
+    exportCsv(sec, `spad-${sec.key}-${jalaaliToday()}.csv`)
     toast.success('فایل CSV دانلود شد 📄')
   }
 
@@ -405,17 +405,14 @@ export function AdminView({ user, onLogout }: Props) {
     <div className="min-h-screen flex flex-col lg:flex-row bg-background">
       {/* ── سایدبار دسکتاپ ── */}
       <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-sidebar text-sidebar-foreground sticky top-0 h-screen">
-        <div className="p-5 border-b border-white/10 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="size-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center">
-              <Cog className="size-6 text-white" />
-            </div>
-            <div>
-              <div className="font-extrabold text-sm leading-snug">اسپاد مبتکران پیشه</div>
-              <div className="text-[11px] text-white/60">پنل مدیریت کارگاه</div>
-            </div>
+        <div className="p-5 border-b border-white/10 flex items-center gap-2.5">
+          <div className="size-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shrink-0">
+            <Cog className="size-6 text-white" />
           </div>
-          <ThemeToggle />
+          <div>
+            <div className="font-extrabold text-sm leading-snug">اسپاد مبتکران پیشه</div>
+            <div className="text-[11px] text-white/60">پنل مدیریت کارگاه</div>
+          </div>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
           {NAV.map((n) => {
@@ -440,13 +437,14 @@ export function AdminView({ user, onLogout }: Props) {
           })}
         </nav>
         <div className="p-4 border-t border-white/10 flex items-center gap-3">
-          <div className="size-9 rounded-full bg-amber-600 text-white text-sm font-bold flex items-center justify-center">
+          <div className="size-9 rounded-full bg-amber-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
             {user.name.charAt(0)}
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold truncate">{user.name}</div>
             <div className="text-[11px] text-white/60">مدیر کارگاه</div>
           </div>
+          <ThemeToggle align="start" />
           <Button variant="ghost" size="icon" onClick={logout} title="خروج" className="text-white/60 hover:text-white hover:bg-white/10">
             <LogOut className="size-4" />
           </Button>
@@ -459,9 +457,9 @@ export function AdminView({ user, onLogout }: Props) {
           <div className="px-4 h-14 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AppLogo size="sm" />
-              <ThemeToggle />
             </div>
             <div className="flex items-center gap-2">
+              <ThemeToggle align="start" />
               <Badge className="bg-amber-600">مدیر</Badge>
               <span className="text-sm font-bold">{user.name}</span>
               <Button variant="ghost" size="icon" onClick={logout}>
@@ -1106,8 +1104,9 @@ export function AdminView({ user, onLogout }: Props) {
                         (Chrome یا Edge) وارد کنید و Enter بزنید. صفحه همین برنامه باز می‌شود.
                       </>,
                       <>
-                        <b>ثبت‌نام نیرو:</b> هر نیرو در تب «ثبت‌نام نیرو» با شماره موبایل خودش عضو می‌شود و بعد
-                        با همان شماره هر روز وارد می‌شود.
+                        <b>ثبت‌نام و حضور نیرو:</b> هر نیرو در تب «ثبت‌نام نیرو» با شماره موبایل خودش عضو می‌شود؛ بعد هر روز
+                        در داشبورد خودش دکمه ثبت ورود را می‌زند و <b>ساعت دقیق رسیدن</b> را دستی وارد می‌کند (مثلاً ۷:۳۰) و
+                        موقع رفتن هم دکمه ثبت خروج با ساعت واقعی. یادداشت هم می‌تواند اضافه کند.
                       </>,
                       <>
                         <b>دیدن لحظه‌ای:</b> از این به بعد هر ثبت نیرو (ورود/خروج، تایم CNC، مساعده، کار روزانه)

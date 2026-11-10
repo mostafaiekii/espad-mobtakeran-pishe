@@ -25,3 +25,4 @@ desktop/npm-install.log
 .DS_Store
 Thumbs.db
 tool-results/
+tsconfig.tsbuildinfo
