@@ -13,9 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AppLogo, ConfirmDialog, EmptyState, StatCard, AdvanceStatusBadge } from '@/components/app/ui-bits'
 import { ThemeToggle } from '@/components/app/theme-toggle'
-import { apiGet, apiPost, apiPatch, apiDelete, clearSession } from '@/lib/api'
-import { faNum, faToman, faTime, faDate, faDateShort, faDateTime, faDuration, faHours, toLocalInput, isSameDay } from '@/lib/format'
-import { MACHINES, MATERIALS, TASK_CATEGORIES, type SessionUser, type WorkerData, type CncJobRec, type TaskRec, type AdvanceRec } from '@/lib/types'
+import { apiGet, apiPost, apiPatch, apiDelete, clearSession, downloadAttachment } from '@/lib/api'
+import { faNum, faToman, faTime, faDate, faDateShort, faDateTime, faDuration, faHours, faSize, faAgo, toLocalInput, isSameDay } from '@/lib/format'
+import { MACHINES, MATERIALS, TASK_CATEGORIES, type SessionUser, type WorkerData, type CncJobRec, type TaskRec, type AdvanceRec, type PostRec, type AttachmentMeta } from '@/lib/types'
 import {
   LogIn,
   LogOut,
@@ -35,6 +35,10 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Megaphone,
+  Download,
+  FileText,
+  Paperclip,
 } from 'lucide-react'
 
 interface Props {
@@ -104,6 +108,10 @@ export function WorkerView({ user, onLogout }: Props) {
   const [deleteTask, setDeleteTask] = useState<TaskRec | null>(null)
   const [busyTaskDel, setBusyTaskDel] = useState(false)
 
+  // اطلاعیه‌ها و فایل‌ها + پایش زنده
+  const [postsSeenAt, setPostsSeenAt] = useState(0)
+  const [downloading, setDownloading] = useState<string | null>(null)
+
   const refresh = useCallback(async (silent = false) => {
     try {
       const d = await apiGet<WorkerData>('/api/worker/data')
@@ -121,11 +129,34 @@ export function WorkerView({ user, onLogout }: Props) {
     setEnd(toLocalInput(now))
     const d = new Date()
     setTaskDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    setPostsSeenAt(Number(localStorage.getItem('spad_posts_seen') || 0))
     refresh()
     // بروزرسانی خودکار هر ۲۰ ثانیه — داده‌ها همیشه تازه می‌مانند
     const iv = setInterval(() => refresh(true), 20000)
     return () => clearInterval(iv)
   }, [refresh])
+
+  // ── پایش زنده: گزارش صفحه فعلی برای مدیر — هر ۸ ثانیه ──
+  useEffect(() => {
+    let stopped = false
+    const send = () => {
+      if (!stopped) apiPost('/api/worker/presence', { view: tab }).catch(() => {})
+    }
+    send()
+    const iv = setInterval(send, 8000)
+    return () => {
+      stopped = true
+      clearInterval(iv)
+    }
+  }, [tab])
+
+  // بازدید اطلاعیه‌ها — بج جدیدها پاک می‌شود
+  useEffect(() => {
+    if (tab === 'posts') {
+      localStorage.setItem('spad_posts_seen', String(Date.now()))
+      setPostsSeenAt(Date.now())
+    }
+  }, [tab])
 
   // ── محاسبات امروز ──
   const now = new Date()
@@ -432,6 +463,29 @@ export function WorkerView({ user, onLogout }: Props) {
     onLogout()
   }
 
+  // ── اطلاعیه‌ها ──
+  const posts: PostRec[] = data?.posts ?? []
+  const unseenPosts = posts.filter((p) => new Date(p.createdAt).getTime() > postsSeenAt).length
+
+  function fileIcon(mime: string) {
+    if (mime.startsWith('image/')) return Paperclip
+    if (mime.includes('pdf') || mime.includes('text')) return FileText
+    return Paperclip
+  }
+
+  async function download(att: AttachmentMeta) {
+    setDownloading(att.id)
+    try {
+      await downloadAttachment(att.id, att.fileName)
+      toast.success(`«${att.fileName}» دانلود شد 📥`)
+      refresh(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'دانلود ناموفق بود')
+    } finally {
+      setDownloading(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -545,7 +599,7 @@ export function WorkerView({ user, onLogout }: Props) {
 
         {/* ── تب‌ها ── */}
         <Tabs value={tab} onValueChange={setTab} dir="rtl" className="space-y-4">
-          <TabsList className="grid grid-cols-4 w-full h-auto min-h-12 max-w-2xl p-1">
+          <TabsList className="grid grid-cols-5 w-full h-auto min-h-12 max-w-3xl p-1">
             <TabsTrigger value="attendance" className="gap-1 sm:gap-1.5 py-2">
               <Clock className="size-4" /> <span className="text-xs sm:text-sm">حضور</span>
             </TabsTrigger>
@@ -557,6 +611,14 @@ export function WorkerView({ user, onLogout }: Props) {
             </TabsTrigger>
             <TabsTrigger value="tasks" className="gap-1 sm:gap-1.5 py-2">
               <ClipboardList className="size-4" /> <span className="text-xs sm:text-sm">کارها</span>
+            </TabsTrigger>
+            <TabsTrigger value="posts" className="relative gap-1 sm:gap-1.5 py-2">
+              <Megaphone className="size-4" /> <span className="text-xs sm:text-sm">اطلاعیه‌ها</span>
+              {unseenPosts > 0 && (
+                <span className="absolute -top-1 left-1 size-4.5 min-w-4.5 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {faNum(unseenPosts)}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -927,6 +989,83 @@ export function WorkerView({ user, onLogout }: Props) {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ═══ اطلاعیه‌ها و فایل‌ها ═══ */}
+          <TabsContent value="posts" className="space-y-4">
+            <Card className="border-amber-200 bg-amber-50/50 dim:bg-amber-950/15 dark:bg-amber-950/15 dim:border-amber-900 dark:border-amber-900">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Megaphone className="size-4 text-amber-600" /> اطلاعیه‌های مدیریت
+                </CardTitle>
+                <CardDescription>
+                  اعلامیه‌ها، دستورالعمل‌ها و فایل‌هایی که مدیر کارگاه برای شما فرستاده — با دکمه دانلود روی دستگاه خودتان ذخیره کنید
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            {posts.length === 0 ? (
+              <Card>
+                <CardContent className="py-4">
+                  <EmptyState icon={Megaphone} title="هنوز اطلاعیه‌ای منتشر نشده" hint="هر چیزی مدیر منتشر کند (متن یا فایل)، بلافاصله همین‌جا با بج قرمز «جدید» می‌بینید" />
+                </CardContent>
+              </Card>
+            ) : (
+              posts.map((p) => (
+                <Card key={p.id} className="shadow-sm">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-base flex items-center gap-2.5 min-w-0">
+                        <span className="size-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                          <Megaphone className="size-4" />
+                        </span>
+                        <span className="min-w-0">{p.title}</span>
+                        {new Date(p.createdAt).getTime() > postsSeenAt && (
+                          <Badge className="bg-red-500 text-white shrink-0">جدید</Badge>
+                        )}
+                      </CardTitle>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">{faAgo(p.createdAt)}</span>
+                    </div>
+                  </CardHeader>
+                  {p.body && (
+                    <CardContent className="pt-1 pb-2 -mt-1">
+                      <p className="text-sm text-muted-foreground leading-6 whitespace-pre-wrap">{p.body}</p>
+                    </CardContent>
+                  )}
+                  {p.attachments.length > 0 && (
+                    <CardContent className="pt-0 pb-4 space-y-2">
+                      {p.attachments.map((att) => {
+                        const Icon = fileIcon(att.mimeType)
+                        return (
+                          <button
+                            key={att.id}
+                            onClick={() => download(att)}
+                            disabled={downloading === att.id}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-accent/60 hover:border-amber-300 transition-colors text-right disabled:opacity-60"
+                          >
+                            <span className="size-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                              <Icon className="size-4 text-muted-foreground" />
+                            </span>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-bold truncate" dir="auto">{att.fileName}</span>
+                              <span className="block text-[11px] text-muted-foreground">{faSize(att.size)}</span>
+                            </span>
+                            <span className="shrink-0 flex items-center gap-1.5">
+                              {downloading === att.id ? (
+                                <Loader2 className="size-4 animate-spin text-amber-600" />
+                              ) : (
+                                <Download className="size-4 text-amber-600" />
+                              )}
+                              <span className="text-[11px] text-muted-foreground hidden sm:inline">دانلود</span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </CardContent>
+                  )}
+                </Card>
+              ))
+            )}
           </TabsContent>
         </Tabs>
       </main>

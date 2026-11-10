@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from 'next-themes'
 import {
@@ -27,9 +27,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AppLogo, ConfirmDialog, EmptyState, StatCard, AdvanceStatusBadge } from '@/components/app/ui-bits'
 import { ThemeToggle } from '@/components/app/theme-toggle'
 import { DateFilter, type DateFilterState, defaultFilter, rangeFromFilter, inRange } from '@/components/app/date-filter'
-import { apiGet, apiPost, apiPatch, apiDelete, clearSession } from '@/lib/api'
-import { faNum, faToman, faTime, faDate, faDateShort, faDateTime, faDuration, faHours } from '@/lib/format'
-import { TASK_CATEGORIES, type SessionUser, type AdminData, type AdvanceRec, type WorkerSummary } from '@/lib/types'
+import { apiGet, apiPost, apiPatch, apiDelete, clearSession, apiPostForm, downloadAttachment } from '@/lib/api'
+import { faNum, faToman, faTime, faDate, faDateShort, faDateTime, faDuration, faHours, faAgo, faSize } from '@/lib/format'
+import { TASK_CATEGORIES, VIEW_LABELS, type SessionUser, type AdminData, type AdvanceRec, type WorkerSummary, type PresenceRec, type AttachmentMeta, type PostRec } from '@/lib/types'
 import { buildReportSections, exportXlsx, exportCsv, printReport, type ReportType, type ReportSection } from '@/lib/report-export'
 import { toJalaali } from '@/lib/jalaali'
 import {
@@ -64,6 +64,13 @@ import {
   Router,
   MonitorSmartphone,
   Check,
+  Megaphone,
+  Download,
+  Paperclip,
+  Smartphone,
+  Monitor,
+  X,
+  AlertTriangle,
 } from 'lucide-react'
 
 interface Props {
@@ -71,16 +78,18 @@ interface Props {
   onLogout: () => void
 }
 
-type Section = 'dashboard' | 'workers' | 'attendance' | 'cnc' | 'advances' | 'tasks' | 'reports' | 'network'
+type Section = 'dashboard' | 'monitor' | 'workers' | 'attendance' | 'cnc' | 'advances' | 'tasks' | 'reports' | 'posts' | 'network'
 
 const NAV: { key: Section; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'داشبورد', icon: LayoutDashboard },
+  { key: 'monitor', label: 'پایش زنده', icon: MonitorSmartphone },
   { key: 'workers', label: 'نیروها', icon: Users },
   { key: 'attendance', label: 'حضور و غیاب', icon: Clock },
   { key: 'cnc', label: 'ماشین‌کاری CNC', icon: Cog },
   { key: 'advances', label: 'درخواست مساعده', icon: Wallet },
   { key: 'tasks', label: 'گزارش کارها', icon: ClipboardList },
   { key: 'reports', label: 'گزارش‌گیری', icon: FileBarChart },
+  { key: 'posts', label: 'اطلاعیه‌ها و فایل‌ها', icon: Megaphone },
   { key: 'network', label: 'راهنمای اتصال', icon: Wifi },
 ]
 
@@ -149,6 +158,16 @@ export function AdminView({ user, onLogout }: Props) {
   // راهنمای اتصال (شبکه محلی)
   const [netInfo, setNetInfo] = useState<{ ips: string[]; port: number; urls: string[] } | null>(null)
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+
+  // اطلاعیه‌ها و فایل‌ها
+  const [postTitle, setPostTitle] = useState('')
+  const [postBody, setPostBody] = useState('')
+  const [postFiles, setPostFiles] = useState<File[]>([])
+  const [savingPost, setSavingPost] = useState(false)
+  const [deletePost, setDeletePost] = useState<PostRec | null>(null)
+  const [busyPostDel, setBusyPostDel] = useState(false)
+  const [adminDownloading, setAdminDownloading] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(async (silent = false) => {
     try {
@@ -277,6 +296,17 @@ export function AdminView({ user, onLogout }: Props) {
   )
   const pieData = useMemo(() => stats?.advanceStatusDist.filter((s) => s.value > 0) ?? [], [stats])
 
+  // ── پایش زنده ──
+  const presenceByUser = useMemo(() => {
+    const m = new Map<string, PresenceRec>()
+    for (const p of data?.presence ?? []) m.set(p.userId, p)
+    return m
+  }, [data])
+  const onlineCount = useMemo(
+    () => (data ? data.presence.filter((p) => Date.now() - new Date(p.updatedAt).getTime() < 20000).length : 0),
+    [data]
+  )
+
   // ── اکشن‌ها ──
   async function submitReview() {
     if (!review) return
@@ -388,6 +418,82 @@ export function AdminView({ user, onLogout }: Props) {
     toast.info('پنجره چاپ باز شد — «Save as PDF» را انتخاب کنید 🖨️')
   }
 
+  function postFileIcon(mime: string) {
+    if (mime.includes('pdf') || mime.includes('text')) return FileText
+    return Paperclip
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    setPostFiles(Array.from(e.target.files ?? []))
+  }
+
+  function removePickedFile(i: number) {
+    setPostFiles((prev) => prev.filter((_, x) => x !== i))
+  }
+
+  async function submitPost(e: React.FormEvent) {
+    e.preventDefault()
+    if (!postTitle.trim()) {
+      toast.error('عنوان اطلاعیه را وارد کنید')
+      return
+    }
+    if (!postBody.trim() && postFiles.length === 0) {
+      toast.error('متن اطلاعیه یا حداقل یک فایل پیوست لازم است')
+      return
+    }
+    for (const f of postFiles) {
+      if (f.size > 25 * 1024 * 1024) {
+        toast.error(`فایل «${f.name}» بزرگ‌تر از ۲۵ مگابایت است`)
+        return
+      }
+    }
+    setSavingPost(true)
+    try {
+      const form = new FormData()
+      form.set('title', postTitle.trim())
+      form.set('body', postBody.trim())
+      for (const f of postFiles) form.append('files', f)
+      await apiPostForm('/api/admin/posts', form)
+      toast.success('اطلاعیه منتشر شد — همه نیروها همین حالا در داشبورد خودشان می‌بینند 📣')
+      setPostTitle('')
+      setPostBody('')
+      setPostFiles([])
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      await refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'خطا در انتشار اطلاعیه')
+    } finally {
+      setSavingPost(false)
+    }
+  }
+
+  async function doDeletePost() {
+    if (!deletePost) return
+    setBusyPostDel(true)
+    try {
+      await apiDelete(`/api/admin/posts?id=${deletePost.id}`)
+      toast.success('اطلاعیه حذف شد 🗑️')
+      setDeletePost(null)
+      await refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'خطا در حذف اطلاعیه')
+    } finally {
+      setBusyPostDel(false)
+    }
+  }
+
+  async function adminDownload(att: AttachmentMeta) {
+    setAdminDownloading(att.id)
+    try {
+      await downloadAttachment(att.id, att.fileName)
+      refresh(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'دانلود ناموفق بود')
+    } finally {
+      setAdminDownloading(null)
+    }
+  }
+
   function logout() {
     clearSession()
     onLogout()
@@ -431,6 +537,12 @@ export function AdminView({ user, onLogout }: Props) {
                   <span className="size-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                     {faNum(pendingAdvances.length)}
                   </span>
+                )}
+                {n.key === 'monitor' && onlineCount > 0 && (
+                  <span
+                    className="size-2 rounded-full bg-emerald-400 animate-pulse shrink-0"
+                    title={`${faNum(onlineCount)} نیرو آنلاین`}
+                  />
                 )}
               </button>
             )
@@ -486,6 +598,9 @@ export function AdminView({ user, onLogout }: Props) {
                     <span className="size-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                       {faNum(pendingAdvances.length)}
                     </span>
+                  )}
+                  {n.key === 'monitor' && onlineCount > 0 && (
+                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   )}
                 </button>
               )
@@ -1022,7 +1137,266 @@ export function AdminView({ user, onLogout }: Props) {
             </>
           )}
 
-          {/* ═════════ راهنمای اتصال (شبکه محلی) ═════════ */}
+          {/* ═════════ پایش زنده ═════════ */}
+          {section === 'monitor' && (
+            <>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h1 className="text-xl lg:text-2xl font-black flex items-center gap-2">
+                    <MonitorSmartphone className="size-6 text-amber-600" /> پایش زنده نیروها
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    هر نیرو الان کدام صفحه برنامه را باز کرده — حداکثر تا ۸ ثانیه پس از هر جابجایی به‌روز می‌شود
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 gap-1.5">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                    {faNum(onlineCount)} آنلاین
+                  </Badge>
+                  <Badge variant="secondary">{faNum(data.workers.length)} نیرو</Badge>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {data.workers.map((w) => {
+                  const p = presenceByUser.get(w.id)
+                  const agoMs = p ? Date.now() - new Date(p.updatedAt).getTime() : Infinity
+                  const online = agoMs < 20000
+                  const recent = agoMs < 5 * 60000
+                  const isPhone = p ? /Android|iPhone|iPad|Mobile/i.test(p.userAgent) : false
+                  const viewLabel = p ? VIEW_LABELS[p.view] ?? 'در برنامه' : null
+                  return (
+                    <Card key={w.id} className={`shadow-sm ${online ? 'border-emerald-300 dim:border-emerald-700 dark:border-emerald-700' : ''}`}>
+                      <CardContent className="p-4 flex items-center gap-3">
+                        <div
+                          className={`size-11 rounded-xl flex items-center justify-center shrink-0 ${
+                            online ? 'bg-emerald-100 text-emerald-700 dim:bg-emerald-950 dim:text-emerald-300 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {isPhone ? <Smartphone className="size-5" /> : <Monitor className="size-5" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="font-bold text-sm truncate max-w-36">{w.name}</div>
+                            {online ? (
+                              <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 gap-1">
+                                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> آنلاین
+                              </Badge>
+                            ) : recent ? (
+                              <Badge variant="secondary">اخیراً فعال</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-muted-foreground">آفلاین</Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1 truncate">
+                            {viewLabel ? (
+                              <>
+                                در حال دیدن: <b className="text-foreground">{viewLabel}</b>
+                              </>
+                            ) : (
+                              'برنامه را باز نکرده'
+                            )}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                            {p ? `${faAgo(p.updatedAt)} · ${isPhone ? 'گوشی' : 'رایانه'}` : w.jobTitle || 'نیروی کارگاه'}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+                {data.workers.length === 0 && (
+                  <Card className="sm:col-span-2 xl:col-span-3">
+                    <CardContent className="py-4">
+                      <EmptyState
+                        icon={Users}
+                        title="هنوز نیرویی ثبت‌نام نکرده"
+                        hint="وقتی نیروها از سیستم خودشان ثبت‌نام و وارد برنامه شوند، فعالیتشان همین‌جا لحظه‌ای دیده می‌شود"
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <AlertTriangle className="size-4 text-amber-600" /> «پایش زنده» چه چیزی را نشان می‌دهد؟
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2.5 text-sm leading-7 text-muted-foreground">
+                    <li className="flex gap-2">
+                      <span className="text-amber-600 font-bold">•</span>
+                      <span>
+                        <b className="text-foreground">چیزی که می‌بینید:</b> وضعیت اتصال هر نیرو (آنلاین/آفلاین)، صفحه فعلی‌اش در
+                        برنامه اسپاد، نوع دستگاه (گوشی یا رایانه) و زمان آخرین فعالیت — چون نیرو کل کارش داخل اسپاد است، این یعنی
+                        دیدن لحظه‌ایِ کاری که واقعاً انجام می‌دهد.
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-amber-600 font-bold">•</span>
+                      <span>
+                        <b className="text-foreground">چرا تصویر کامل مانیتور نیرو نداریم؟</b> مرورگرها (Chrome/Edge) به دلایل امنیتی
+                        اجازه ضبط صفحهٔ دستگاه را روی اتصال شبکه داخلی (HTTP) نمی‌دهند و روی گوشی هم عملاً کار نمی‌کند. اگر جایی
+                        تصویر کامل دسکتاپ PC یک نیرو لازم شد، ابزارهایی مثل <b className="text-foreground">AnyDesk</b> یا
+                        <b className="text-foreground"> Quick Assist ویندوز</b> را کنار اسپاد استفاده کنید.
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-amber-600 font-bold">•</span>
+                      <span>
+                        <b className="text-foreground">نکته حریم خصوصی:</b> این پنل فقط فعالیت داخل برنامه را نشان می‌دهد، نه محتوای
+                        شخصی سیستم نیرو.
+                      </span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* ═════════ اطلاعیه‌ها و فایل‌ها ═════════ */}
+          {section === 'posts' && (
+            <>
+              <div>
+                <h1 className="text-xl lg:text-2xl font-black flex items-center gap-2">
+                  <Megaphone className="size-6 text-amber-600" /> اطلاعیه‌ها و فایل‌ها
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  اطلاعیه، دستورالعمل یا فایل بفرستید — همه نیروها حداکثر تا ۲۰ ثانیه در داشبورد خودشان با بج «جدید» می‌بینند
+                </p>
+              </div>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Paperclip className="size-4 text-amber-600" /> اطلاعیه جدید
+                  </CardTitle>
+                  <CardDescription>متن اطلاعیه و در صورت نیاز فایل پیوست (حداکثر ۱۰ فایل، هر کدام تا ۲۵ مگابایت)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={submitPost} className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-title">عنوان *</Label>
+                      <Input
+                        id="post-title"
+                        placeholder="مثلاً: دستورالعمل ایمنی دستگاه جدید"
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-body">متن اطلاعیه</Label>
+                      <Textarea
+                        id="post-body"
+                        rows={3}
+                        placeholder="توضیحات اختیاری برای نیروها…"
+                        value={postBody}
+                        onChange={(e) => setPostBody(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onPickFiles} />
+                      <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
+                        <Paperclip className="size-4" /> انتخاب فایل‌ها
+                      </Button>
+                      {postFiles.map((f, i) => (
+                        <Badge key={`${f.name}-${i}`} variant="secondary" className="gap-1.5 max-w-52 pr-2">
+                          <span className="truncate text-xs" dir="auto">{f.name}</span>
+                          <button type="button" onClick={() => removePickedFile(i)} className="text-muted-foreground hover:text-red-600 shrink-0">
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      <Button type="submit" disabled={savingPost} className="gap-2 font-bold ms-auto">
+                        {savingPost ? <Loader2 className="size-4 animate-spin" /> : <Megaphone className="size-4" />}
+                        انتشار اطلاعیه
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+
+              {data.posts.length === 0 ? (
+                <Card>
+                  <CardContent className="py-4">
+                    <EmptyState icon={Megaphone} title="هنوز اطلاعیه‌ای منتشر نشده" hint="با فرم بالا اولین اطلاعیه را برای نیروها بفرستید" />
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {data.posts.map((p) => (
+                    <Card key={p.id} className="shadow-sm">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-base flex items-center gap-2.5 min-w-0">
+                            <span className="size-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                              <Megaphone className="size-4" />
+                            </span>
+                            <span className="min-w-0">{p.title}</span>
+                          </CardTitle>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[11px] text-muted-foreground hidden sm:block">{faDateTime(p.createdAt)}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => setDeletePost(p)}
+                              title="حذف اطلاعیه"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      {p.body && (
+                        <CardContent className="pt-0 pb-2">
+                          <p className="text-sm text-muted-foreground leading-6 whitespace-pre-wrap">{p.body}</p>
+                        </CardContent>
+                      )}
+                      {p.attachments.length > 0 && (
+                        <CardContent className="pt-0 pb-4 flex flex-wrap gap-2">
+                          {p.attachments.map((att) => {
+                            const Icon = postFileIcon(att.mimeType)
+                            return (
+                              <button
+                                key={att.id}
+                                onClick={() => adminDownload(att)}
+                                disabled={adminDownloading === att.id}
+                                className="flex items-center gap-2.5 p-2.5 ps-3 rounded-xl border border-border bg-card hover:bg-accent/60 hover:border-amber-300 transition-colors disabled:opacity-60"
+                              >
+                                <Icon className="size-4 text-amber-600 shrink-0" />
+                                <span className="text-xs font-bold max-w-44 truncate" dir="auto">{att.fileName}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">{faSize(att.size)}</span>
+                                <Badge variant="secondary" className="text-[10px] gap-1 shrink-0">
+                                  <Download className="size-3" /> {faNum(att.downloads)}
+                                </Badge>
+                                {adminDownloading === att.id && <Loader2 className="size-3.5 animate-spin text-amber-600" />}
+                              </button>
+                            )
+                          })}
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              <ConfirmDialog
+                open={!!deletePost}
+                onOpenChange={(o) => !o && setDeletePost(null)}
+                title="حذف اطلاعیه"
+                desc={`«${deletePost?.title ?? ''}» و همه فایل‌های پیوستش برای همه نیروها حذف می‌شود. ادامه می‌دهید؟`}
+                confirmText="حذف اطلاعیه"
+                destructive
+                loading={busyPostDel}
+                onConfirm={doDeletePost}
+              />
+            </>
+          )}
+
           {section === 'network' && (
             <>
               <div>

@@ -14,12 +14,18 @@ export async function GET(req: Request) {
   if (!user) return unauthorized()
   if (user.role !== 'MANAGER') return forbidden()
 
-  const [workers, attendances, cncJobs, advances, tasks] = await Promise.all([
+  const [workers, attendances, cncJobs, advances, tasks, presence, posts] = await Promise.all([
     db.user.findMany({ where: { role: 'WORKER' }, orderBy: { createdAt: 'asc' } }),
     db.attendance.findMany({ orderBy: { timestamp: 'desc' }, take: 500 }),
     db.cncJob.findMany({ orderBy: { startTime: 'desc' }, take: 500 }),
     db.advanceRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 300 }),
     db.taskLog.findMany({ orderBy: { date: 'desc' }, take: 400 }),
+    db.presence.findMany(),
+    db.sharedPost.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { attachments: { select: { id: true, fileName: true, mimeType: true, size: true, downloads: true } } },
+    }),
   ])
 
   const userNames = new Map<string, string>(workers.map((w) => [w.id, w.name]))
@@ -125,6 +131,19 @@ export async function GET(req: Request) {
       userName: userNames.get(t.userId) ?? '—',
       date: t.date.toISOString(),
       createdAt: t.createdAt.toISOString(),
+    })),
+    presence: presence.map((p) => ({
+      userId: p.userId,
+      view: p.view,
+      userAgent: p.userAgent,
+      updatedAt: p.updatedAt.toISOString(),
+    })),
+    posts: posts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body,
+      createdAt: p.createdAt.toISOString(),
+      attachments: p.attachments,
     })),
     stats,
   })

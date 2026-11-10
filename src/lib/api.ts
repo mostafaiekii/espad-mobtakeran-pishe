@@ -66,3 +66,33 @@ export async function apiDelete<T>(path: string): Promise<T> {
   })
   return handle<T>(res)
 }
+
+/** ارسال فرم multipart (آپلود فایل اطلاعیه‌ها) — بدون Content-Type دستی تا مرورگر boundary بگذارد */
+export async function apiPostForm<T>(path: string, form: FormData): Promise<T> {
+  const u = getSession()
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: u ? { 'x-user-id': u.id } : undefined,
+    body: form,
+  })
+  return handle<T>(res)
+}
+
+/** دانلود پیوست با احراز هویت و ذخیره روی دستگاه نیرو/مدیر */
+export async function downloadAttachment(id: string, fileName: string): Promise<void> {
+  const u = getSession()
+  const res = await fetch(`/api/files/${encodeURIComponent(id)}`, {
+    headers: u ? { 'x-user-id': u.id } : undefined,
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error('دانلود فایل ناموفق بود')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}

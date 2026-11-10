@@ -65,6 +65,42 @@ export interface TaskRec {
   createdAt: string
 }
 
+// ─── اطلاعیه‌ها و فایل‌ها ────────────────────────────────
+export interface AttachmentMeta {
+  id: string
+  fileName: string
+  mimeType: string
+  size: number
+  downloads: number
+}
+
+export interface PostRec {
+  id: string
+  title: string
+  body: string
+  createdAt: string
+  attachments: AttachmentMeta[]
+}
+
+// ─── پایش زنده ───────────────────────────────────────────
+export interface PresenceRec {
+  userId: string
+  view: string
+  userAgent: string
+  updatedAt: string
+}
+
+/** برچسب فارسی صفحات برنامه — برای پایش زنده مدیر */
+export const VIEW_LABELS: Record<string, string> = {
+  attendance: 'حضور و غیاب',
+  cnc: 'ماشین‌کاری CNC',
+  advance: 'درخواست مساعده',
+  tasks: 'چک‌لیست کارها',
+  posts: 'اطلاعیه‌ها و فایل‌ها',
+  guide: 'راهنمای اتصال',
+  home: 'صفحه اصلی',
+}
+
 export interface WorkerSummary extends SessionUser {
   presentToday: boolean
   todayEntry?: string
@@ -104,6 +140,7 @@ export interface WorkerData {
   cncJobs: CncJobRec[]
   advances: AdvanceRec[]
   tasks: TaskRec[]
+  posts: PostRec[]
 }
 
 export interface AdminData {
@@ -112,6 +149,8 @@ export interface AdminData {
   cncJobs: CncJobRec[]
   advances: AdvanceRec[]
   tasks: TaskRec[]
+  presence: PresenceRec[]
+  posts: PostRec[]
   stats: AdminStats
 }
 

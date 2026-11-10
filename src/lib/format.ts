@@ -60,3 +60,20 @@ export function isSameDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate()
   )
 }
+
+/** حجم فایل فارسی: ۲.۵ مگابایت */
+export function faSize(bytes: number): string {
+  if (bytes < 1024) return `${faNum(bytes)} بایت`
+  if (bytes < 1048576) return `${faNum(Math.round(bytes / 1024))} کیلوبایت`
+  return `${(bytes / 1048576).toLocaleString('fa-IR', { maximumFractionDigits: 1 })} مگابایت`
+}
+
+/** زمان نسبی: «همین حالا» / «۳۰ ثانیه پیش» / «۵ دقیقه پیش» … */
+export function faAgo(d: string | Date): string {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 1000))
+  if (s < 10) return 'همین حالا'
+  if (s < 60) return `${faNum(s)} ثانیه پیش`
+  if (s < 3600) return `${faNum(Math.floor(s / 60))} دقیقه پیش`
+  if (s < 86400) return `${faNum(Math.floor(s / 3600))} ساعت پیش`
+  return `${faNum(Math.floor(s / 86400))} روز پیش`
+}
