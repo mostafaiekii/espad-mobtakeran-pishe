@@ -69,6 +69,29 @@ export async function register() {
     await db.$queryRawUnsafe(
       `CREATE UNIQUE INDEX IF NOT EXISTS "User_phone_key" ON "User"("phone")`
     )
+    await db.$queryRawUnsafe(`CREATE TABLE IF NOT EXISTS "SharedPost" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "title" TEXT NOT NULL,
+    "body" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`)
+    await db.$queryRawUnsafe(`CREATE TABLE IF NOT EXISTS "PostAttachment" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "postId" TEXT NOT NULL,
+    "fileName" TEXT NOT NULL,
+    "mimeType" TEXT NOT NULL DEFAULT 'application/octet-stream',
+    "size" INTEGER NOT NULL DEFAULT 0,
+    "data" BLOB NOT NULL,
+    "downloads" INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT "PostAttachment_postId_fkey" FOREIGN KEY ("postId") REFERENCES "SharedPost" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+)`)
+    await db.$queryRawUnsafe(`CREATE TABLE IF NOT EXISTS "Presence" (
+    "userId" TEXT NOT NULL PRIMARY KEY,
+    "view" TEXT NOT NULL DEFAULT 'attendance',
+    "userAgent" TEXT NOT NULL DEFAULT '',
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Presence_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+)`)
 
     console.log('[db-init] schema ready')
   } catch (e) {
