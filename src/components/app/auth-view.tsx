@@ -204,7 +204,7 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
                       <div>
                         <div className="font-black text-sm">راه‌اندازی اولیه کارگاه</div>
                         <div className="text-[11px] text-muted-foreground leading-5">
-                          هنوز مدری تعریف نشده؛ حساب مدیر را بسازید. پس از آن نیروها خودشان ثبت‌نام می‌کنند.
+                          هنوز <span className="font-bold text-foreground">مدیری</span> تعریف نشده است؛ با همین فرم، حساب مدیر کارگاه را بسازید. پس از آن نیروها خودشان از «ثبت‌نام نیرو» عضو می‌شوند.
                         </div>
                       </div>
                     </div>
@@ -238,9 +238,13 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
                         </>
                       )}
                     </Button>
-                    <p className="text-[11px] text-muted-foreground leading-5 text-center">
-                      این حساب فقط یک‌بار ساخته می‌شود و دسترسی کامل مدیریت را دارد. آن را فراموش نکنید.
-                    </p>
+                    <div className="p-3 rounded-xl bg-muted/60 border border-border text-[11px] leading-5 text-muted-foreground flex items-start gap-2">
+                      <ShieldCheck className="size-4 shrink-0 text-amber-600 mt-0.5" />
+                      <span>
+                        این حساب فقط یک‌بار ساخته می‌شود و دسترسی کامل مدیریت دارد؛ آن را فراموش نکنید.
+                        شما بلافاصله وارد بخش مدیریت می‌شوید و <span className="font-semibold text-foreground">دفعات بعد هم با همان شماره و رمز، از همان دکمهٔ «ورود»</span> وارد می‌شوید.
+                      </span>
+                    </div>
                   </form>
                 )}
 
@@ -249,7 +253,7 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
                   <Tabs defaultValue="login" dir="rtl">
                     <TabsList className="grid grid-cols-2 w-full h-11 mb-6 p-1">
                       <TabsTrigger value="login" className="gap-1.5">
-                        <LogIn className="size-4" /> ورود
+                        <LogIn className="size-4" /> ورود مدیر / نیرو
                       </TabsTrigger>
                       <TabsTrigger value="register" className="gap-1.5">
                         <UserPlus className="size-4" /> ثبت‌نام نیرو
@@ -287,6 +291,13 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
                         <Button type="submit" className="w-full h-11 text-base font-bold" disabled={loadingLogin}>
                           {loadingLogin ? <Loader2 className="size-5 animate-spin" /> : 'ورود'}
                         </Button>
+                        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 dim:bg-amber-950/30 border border-amber-200 dark:border-amber-900 dim:border-amber-900 text-[11px] leading-5 text-muted-foreground">
+                          <ShieldCheck className="size-4 shrink-0 text-amber-600 mt-0.5" />
+                          <span>
+                            این فرم، ورود <span className="font-bold text-foreground">مدیر کارگاه و نیروها</span> است؛
+                            مدیر با همان شماره موبایل و رمزی که در «راه‌اندازی اولیه» ساخت وارد می‌شود.
+                          </span>
+                        </div>
                       </form>
                     </TabsContent>
 
