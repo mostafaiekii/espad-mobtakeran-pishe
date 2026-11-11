@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Phone,
   UserCog,
+  KeyRound,
 } from 'lucide-react'
 
 /** تبدیل ارقام فارسی/عربی به لاتین */
@@ -59,6 +60,13 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
   const [regJob, setRegJob] = useState('')
   const [regPass, setRegPass] = useState('')
   const [loadingReg, setLoadingReg] = useState(false)
+
+  // دکمهٔ «بازنشانی حساب مدیر» فقط داخل پنجرهٔ برنامهٔ ویندوزی (سیستم دفتر) دیده می‌شود؛
+  // در مرورگرهای نیروها داخل شبکه هرگز نمایش داده نمی‌شود.
+  const [isDesktopApp, setIsDesktopApp] = useState(false)
+  useEffect(() => {
+    setIsDesktopApp(/Electron/i.test(navigator.userAgent))
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -298,6 +306,18 @@ export function AuthView({ onLogin }: { onLogin: (u: SessionUser) => void }) {
                             مدیر با همان شماره موبایل و رمزی که در «راه‌اندازی اولیه» ساخت وارد می‌شود.
                           </span>
                         </div>
+                        {isDesktopApp && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.location.href = 'kargahyar://reset-manager'
+                            }}
+                            className="w-full flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground hover:text-amber-700 dark:hover:text-amber-400 dim:hover:text-amber-400 transition-colors py-1.5"
+                          >
+                            <KeyRound className="size-3.5" />
+                            رمز مدیر را فراموش کرده‌اید یا می‌خواهید مدیر را عوض کنید؟ بازنشانی حساب مدیر
+                          </button>
+                        )}
                       </form>
                     </TabsContent>
 

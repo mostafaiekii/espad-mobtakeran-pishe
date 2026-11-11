@@ -1,7 +1,7 @@
 // اسپاد مبتکران پیشه دسکتاپ — پروسه اصلی Electron
 // سرور Next.js standalone را به‌صورت پروسه فرعی اجرا می‌کند و پنجره برنامه را نمایش می‌دهد.
 // مقاوم‌سازی: راه‌اندازی مجدد خودکار موتور، لاگ کامل، صفحات خطای شفاف با دکمه تلاش مجدد.
-const { app, BrowserWindow, Menu, shell } = require('electron')
+const { app, BrowserWindow, Menu, shell, dialog } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 const fs = require('fs')
@@ -145,6 +145,24 @@ function logLANAddresses(port) {
   }
 }
 
+// ── رمز محلی برای عملیات مدیریتی پوسته ────────────────────
+// فقط پوستهٔ Electron (روی سیستم دفتر) این رمز را دارد و به موتور می‌دهد؛
+// مرورگرهای نیروها داخل شبکه آن را نمی‌دانند. با آن، مسیر بازیابی
+// «بازنشانی حساب مدیر» فقط از خودِ سیستم سرور قابل فراخوانی است.
+function localSecret() {
+  const p = path.join(app.getPath('userData'), 'local-secret')
+  try {
+    if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8').trim()
+    const s = require('crypto').randomBytes(24).toString('hex')
+    fs.writeFileSync(p, s, 'utf8')
+    return s
+  } catch (e) {
+    log('[secret] failed: ' + e.message)
+    return ''
+  }
+}
+let LOCAL_SECRET = ''
+
 // ── دیتابیس کاربر ─────────────────────────────────────────
 // در نصب تازه، فایل دیتابیس خالی است؛ جداول هنگام استارت موتور
 // به‌صورت خودکار ساخته می‌شوند (instrumentation) — بدون هیچ دادهٔ دمو.
@@ -192,6 +210,7 @@ function startServer(port) {
     // 0.0.0.0 = گوش‌دادن روی شبکه محلی؛ سیستم‌های نیروها در LAN می‌توانند وصل شوند
     HOSTNAME: '0.0.0.0',
     DATABASE_URL: 'file:' + dbFile().split(path.sep).join('/'),
+    SPAD_LOCAL_SECRET: LOCAL_SECRET,
   }
   log('[engine] spawn on port ' + port + ' (attempt ' + attempts + ')')
   const proc = spawn(process.execPath, [path.join(APP_DIR, 'server.js')], {
@@ -238,6 +257,70 @@ async function waitForServer(timeoutMs) {
     await new Promise((r) => setTimeout(r, 250))
   }
   return false
+}
+
+// ── فراخوانی محلی موتور (فقط از خود سیستم) ───────────────
+function postLocal(pathname) {
+  return new Promise((resolve) => {
+    const body = '{}'
+    const req = http.request(
+      { host: '127.0.0.1', port: serverPort, path: pathname, method: 'POST', timeout: 5000,
+        headers: { 'Content-Type': 'application/json', 'Content-Length': body.length, 'x-local-secret': LOCAL_SECRET } },
+      (res) => {
+        let raw = ''
+        res.on('data', (d) => (raw += d))
+        res.on('end', () => {
+          try { resolve({ status: res.statusCode, body: JSON.parse(raw || '{}') }) }
+          catch { resolve({ status: res.statusCode, body: {} }) }
+        })
+      }
+    )
+    req.on('error', () => resolve({ status: 0, body: {} }))
+    req.on('timeout', () => { req.destroy(); resolve({ status: 0, body: {} }) })
+    req.write(body)
+    req.end()
+  })
+}
+
+// ── بازنشانی حساب مدیر (بازیابی فراموشی رمز / تعویض مدیر) ─
+async function resetManagerFlow() {
+  if (!ready) {
+    dialog.showMessageBox(win, { type: 'warning', message: 'موتور برنامه هنوز آماده نیست — چند لحظه بعد دوباره تلاش کنید.', buttons: ['باشه'] })
+    return
+  }
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'warning',
+    message: 'حساب مدیر حذف شود؟',
+    detail: 'با این کار حساب مدیر فعلی حذف می‌شود و صفحهٔ «راه‌اندازی اولیه» باز می‌شود تا مدیر جدید (یا همان مدیر با اطلاعات جدید) ثبت‌نام کند.\n\n• نیروها و تمام گزارش‌های کاری حفظ می‌شوند\n• این کار فقط از همین سیستم (سیستم دفتر) ممکن است',
+    buttons: ['بله، حذف و ثبت‌نام مجدد', 'انصراف'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  })
+  if (response !== 0) return
+  const r = await postLocal('/api/local/reset-manager')
+  if (r.status === 200 && r.body && r.body.ok) {
+    // نشست ذخیره‌شدهٔ مدیر قبلی پاک شود تا صفحهٔ راه‌اندازی اولیه نمایش داده شود
+    try {
+      await win.webContents.executeJavaScript("try{localStorage.clear()}catch(e){};true")
+    } catch (e) { /* noop */ }
+    await win.loadURL('http://127.0.0.1:' + serverPort)
+    dialog.showMessageBox(win, {
+      type: 'info',
+      message: 'حساب مدیر حذف شد ✓',
+      detail: 'اکنون در صفحهٔ «راه‌اندازی اولیه کارگاه»، حساب مدیر جدید را با نام، شماره موبایل و رمز جدید ثبت‌نام کنید.',
+      buttons: ['باشه'],
+      noLink: true,
+    })
+  } else {
+    dialog.showMessageBox(win, {
+      type: 'error',
+      message: 'بازنشانی انجام نشد',
+      detail: 'موتور برنامه در دسترس نبود. برنامه را ببندید و دوباره باز کنید و از منوی بازیابی، دوباره تلاش کنید.',
+      buttons: ['باشه'],
+      noLink: true,
+    })
+  }
 }
 
 // ── چرخهٔ راه‌اندازی موتور ─────────────────────────────────
@@ -296,6 +379,7 @@ function restartEngine(splashMsg) {
 async function main() {
   Menu.setApplicationMenu(null)
   if (app.setAppUserModelId) app.setAppUserModelId('ir.spad.desktop')
+  LOCAL_SECRET = localSecret()
 
   win = new BrowserWindow({
     width: 1280,
@@ -332,6 +416,10 @@ async function main() {
     } else if (url.startsWith('kargahyar://quit')) {
       e.preventDefault()
       app.quit()
+    } else if (url.startsWith('kargahyar://reset-manager')) {
+      e.preventDefault()
+      log('[ui] manager reset requested from app window')
+      resetManagerFlow()
     } else if (
       url.startsWith('data:') === false &&
       url.startsWith('http://127.0.0.1:') === false &&
