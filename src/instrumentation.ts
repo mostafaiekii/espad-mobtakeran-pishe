@@ -93,6 +93,10 @@ export async function register() {
     CONSTRAINT "Presence_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 )`)
 
+    // پاکسازی حساب‌های دموی نسخه‌های قدیمی تا فرم راه‌اندازی اولیه (ساخت مدیر واقعی) آزاد شود
+    const { cleanupLegacyDemoData } = await import('@/lib/legacy-cleanup')
+    await cleanupLegacyDemoData()
+
     console.log('[db-init] schema ready')
   } catch (e) {
     console.error('[db-init] failed:', e)
